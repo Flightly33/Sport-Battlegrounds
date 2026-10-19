@@ -85,13 +85,13 @@ end
 --------------------------------------------------------------------------------
 local M1: Kit.M1Set = {
 	Hits = {
-		{ Clip = C.Shiver, Time = 0.13, Limb = "LeftLowerArm" },
-		{ Clip = C.ShiverR, Time = 0.13, Limb = "RightLowerArm" },
-		{ Clip = C.Shove, Time = 0.13, Limb = "LeftHand" },
-		{ Clip = C.ShoulderCharge, Time = 0.2, Limb = "LeftUpperArm" },
+		{ Clip = C.Shiver, Limb = "LeftLowerArm" },
+		{ Clip = C.ShiverR, Limb = "RightLowerArm" },
+		{ Clip = C.Shove, Limb = "LeftHand" },
+		{ Clip = C.ShoulderCharge, Limb = "LeftUpperArm" },
 	},
-	Uppercut = { Clip = C.Uppercut, Time = 0.16, Limb = "LeftLowerArm" },
-	Downslam = { Clip = C.Hammer, Time = 0.22, Limb = "RightHand" },
+	Uppercut = { Clip = C.Uppercut, Limb = "LeftLowerArm" },
+	Downslam = { Clip = C.Hammer, Limb = "RightHand" },
 	Size = Vector3.new(6, 6, 6),
 	Swing = function(ctx: Ctx, step: number, _mirrored: boolean, position: Vector3)
 		local P = ctx.Palette
@@ -117,21 +117,22 @@ end
 local function stiffArm(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.StiffArm)
+	local track = ctx:Play(C.StiffArm)
 	Kit.LimbTrail(ctx, "LeftHand", P.Primary, 0.8, 0.3)
 	ctx:Forward(30, 0.2)
 	Sound.Play("HeavyWhoosh", ctx.Root.Position)
-	if not ctx:Wait(0.22) then
+	if not ctx:Until(track, "Contact") then
 		return
 	end
 	local frame = Kit.Frame(ctx)
 	local palm = (frame * CFrame.new(-0.4, 0.6, -3.4)).Position
+	Kit.Contact(ctx, palm, 1.8)
 	FX.Flash(palm, P.Core, 4, 0.12)
 	FX.Shockwave(CFrame.lookAt(palm, palm + frame.LookVector) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 6, 0.3, P.Core)
 	FX.Ring(CFrame.lookAt(palm + frame.LookVector * 2, palm + frame.LookVector * 3) * CFrame.Angles(math.pi / 2, 0, 0), P.Secondary, 1, 4, 0.25, 0.4, 14)
 	FX.Smoke(ctx.Root.Position - Vector3.new(0, 2.6, 0), Color3.fromRGB(170, 160, 150), 6, 1.4, 0.8, 2)
 	Kit.Front(ctx, "Shove", 3.5, Vector3.new(6, 6, 7))
-	ctx:Wait(0.28)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -140,15 +141,16 @@ end
 local function hailMary(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.HailMary)
+	local throw = ctx:Play(C.HailMary)
 	local hand = ctx:Limb("RightHand")
 	if hand then
 		FX.Charge(hand, P.Accent, 0.28, 4)
 	end
-	if not ctx:Wait(0.3) then
+	if not ctx:Until(throw, "Release") then
 		return
 	end
 	local origin = if hand then hand.Position else ctx.Root.Position + Vector3.new(0, 2, 0)
+	Kit.Contact(ctx, origin, 1)
 	ctx:HideProp(true)
 	local dir = (ctx.Aim + Vector3.new(0, 0.06, 0)).Unit
 	FX.Flash(origin, P.Core, 3, 0.12)
@@ -178,7 +180,7 @@ local function hailMary(ctx: Ctx)
 			Sound.Play("HeavyHit", position, 1.1)
 		end,
 	})
-	ctx:Wait(0.25)
+	ctx:Until(throw, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -186,13 +188,14 @@ end
 --------------------------------------------------------------------------------
 local function spear(ctx: Ctx, target: Model?)
 	local P = ctx.Palette
-	ctx:Play(C.Spear)
+	local track = ctx:Play(C.Spear)
 	ctx:Forward(40, 0.25)
 	Sound.Play("Tackle", ctx.Root.Position)
-	if not ctx:Wait(0.32) then
+	if not ctx:Until(track, "Contact") then
 		return
 	end
 	local at = (Kit.Frame(ctx) * CFrame.new(0, -1, -3)).Position
+	Kit.Contact(ctx, at + Vector3.new(0, 1, 0), 2.2)
 	slam(at, P, 7)
 	FX.Popup(at + Vector3.new(0, 5, 0), "SACKED!", P.Secondary, 1.8, 1)
 	Sound.Play("HeavyHit", at, 0.7)
@@ -200,7 +203,7 @@ local function spear(ctx: Ctx, target: Model?)
 	if ctx.IsOwner and target then
 		ctx:Report("Spear", { target }, at)
 	end
-	ctx:Wait(0.4)
+	ctx:Until(track, "End")
 end
 
 local function blitz(ctx: Ctx)
@@ -260,23 +263,25 @@ end
 local function spike(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Spike)
-	if not ctx:Wait(0.14) then
+	local track = ctx:Play(C.Spike)
+	if not ctx:Until(track, "Jump") then
 		return
 	end
 	ctx:Velocity(Kit.Frame(ctx).LookVector * 6 + Vector3.new(0, 40, 0), 0.14)
+	Kit.Dust(ctx, "LeftFoot", 1.2)
 	local hand = ctx:Limb("RightHand")
 	if hand then
 		FX.Charge(hand, P.Accent, 0.3, 5)
 	end
-	if not ctx:Wait(0.24) then
+	if not ctx:Until(track, "Dive") then
 		return
 	end
 	ctx:Velocity(Vector3.new(0, -80, 0), 0.08)
-	if not ctx:Wait(0.07) then
+	if not ctx:Until(track, "Spike") then
 		return
 	end
 	local at = ctx:Ground(ctx.Root.Position + Kit.Frame(ctx).LookVector * 1.5)
+	Kit.Contact(ctx, at + Vector3.new(0, 1, 0), 2.4)
 	ctx:HideProp(true)
 	slam(at, P, 9)
 	FX.Shockwave(CFrame.new(at + Vector3.new(0, 1.5, 0)), P.Secondary, 24, 0.7, P.Core)
@@ -285,7 +290,7 @@ local function spike(ctx: Ctx)
 	Sound.Play("HeavyHit", at, 0.6)
 	shake(at, 0.9, 110)
 	ctx:Sphere("Shockwave", at + Vector3.new(0, 2, 0), 20)
-	ctx:Wait(0.5)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -293,8 +298,9 @@ end
 --------------------------------------------------------------------------------
 local function awaken(ctx: Ctx)
 	local P = ctx.Palette
-	Kit.Awaken(ctx, C.Awaken, 1.05, function(c: Ctx)
-		if not c:Wait(0.6) then
+	Kit.Awaken(ctx, C.Awaken, function(c: Ctx)
+		local track = c.Tracks[#c.Tracks]
+		if not c:Until(track, "Fists") then
 			return
 		end
 		-- Fists slam together
@@ -316,11 +322,12 @@ end
 local function pancake(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Pancake)
-	if not ctx:Wait(0.2) then
+	local track = ctx:Play(C.Pancake)
+	if not ctx:Until(track, "Contact") then
 		return
 	end
 	local frame = Kit.Frame(ctx)
+	Kit.Contact(ctx, (frame * CFrame.new(0, 0.5, -3)).Position, 2.4)
 	Sound.Play("Explosion", ctx.Root.Position, 1.5)
 	for i = 1, 3 do
 		local p = (frame * CFrame.new(0, 0.5, -2 - i * 3.2)).Position
@@ -334,7 +341,7 @@ local function pancake(ctx: Ctx)
 		CameraFX.Shake(0.45)
 	end
 	ctx:Hitbox("Blast", frame * CFrame.new(0, 0, -7), Vector3.new(10, 7, 14))
-	ctx:Wait(0.3)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -343,15 +350,16 @@ end
 local function cannon(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Cannon)
+	local throw = ctx:Play(C.Cannon)
 	local hand = ctx:Limb("RightHand")
 	if hand then
 		FX.Charge(hand, P.Accent, 0.36, 7)
 	end
-	if not ctx:Wait(0.38) then
+	if not ctx:Until(throw, "Release") then
 		return
 	end
 	local origin = (if hand then hand.Position else ctx.Root.Position) + ctx.Aim * 2
+	Kit.Contact(ctx, origin, 2.2)
 	ctx:HideProp(true)
 	FX.Flash(origin, P.Core, 7, 0.15)
 	FX.Shockwave(CFrame.lookAt(origin, origin + ctx.Aim) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 7, 0.35, P.Core)
@@ -386,7 +394,7 @@ local function cannon(ctx: Ctx)
 			Sound.Play("Explosion", position, 1.2)
 		end,
 	})
-	ctx:Wait(0.3)
+	ctx:Until(throw, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -414,9 +422,10 @@ local function goalLine(ctx: Ctx)
 		end
 		FX.Flash(ctx.Root.Position, P.Core, 8, 0.15)
 		FX.Afterimage(ctx.Character, P.Secondary, 0.3)
-		ctx:Play(C.ShoulderCharge)
-		task.wait(0.18)
+		local charge = ctx:Play(C.ShoulderCharge)
+		ctx:Until(charge, "Contact")
 		local at = ctx.Root.Position + ctx.Root.CFrame.LookVector * 3
+		Kit.Contact(ctx, at, 2.4)
 		slam(at, P, 7)
 		Sound.Play("Tackle", at)
 		if ctx.IsOwner and attacker then
@@ -439,7 +448,7 @@ end
 local function meteorSack(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.MeteorSack)
+	local track = ctx:Play(C.MeteorSack)
 	local frame = Kit.Frame(ctx)
 	local velocity = ctx:Velocity(frame.LookVector * 70, 0.36)
 	Kit.Afterimages(ctx, P.Primary, 0.36, 0.06, 0.25)
@@ -464,18 +473,23 @@ local function meteorSack(ctx: Ctx)
 	if ctx.IsOwner and not target then
 		return -- whiffed
 	end
+	-- The grab can connect early: jump the animation to the lift so pose and motion stay together
+	if track then
+		track.Time = math.max(track.Time, C.MeteorSack.Marks.Grab)
+	end
 	-- Rocket into the sky with them
 	ctx:Velocity(Vector3.new(0, 140, 0), 0.32)
 	slam(ctx.Root.Position - Vector3.new(0, 2.6, 0), P, 7)
 	if ctx.IsOwner then
 		CameraFX.Orbit(ctx.Root, 1.25, 30, 120, 26, -12, 60)
 	end
-	if not ctx:Wait(0.35) then
+	if not ctx:Until(track, "Hover") then
 		return
 	end
-	local hold = ctx:Velocity(Vector3.new(0, 2, 0), 0.65)
+	local marks = C.MeteorSack.Marks
+	local hold = ctx:Velocity(Vector3.new(0, 2, 0), marks.Dive - marks.Hover + 0.1)
 	FX.Shell(ctx.Root.Position, P.Primary, 3, 12, 0.6)
-	if not ctx:Wait(0.6) then
+	if not ctx:Until(track, "Dive") then
 		return
 	end
 	if hold then
@@ -491,10 +505,11 @@ local function meteorSack(ctx: Ctx)
 			task.wait(0.03)
 		end
 	end)
-	if not ctx:Wait(0.18) then
+	if not ctx:Until(track, "Slam") then
 		return
 	end
 	local at = landing
+	Kit.Climax(ctx, at)
 	slam(at, P, 16)
 	FX.Explosion(at, P, 18, { Fire = true, Crater = true })
 	FX.Shockwave(CFrame.new(at + Vector3.new(0, 0.5, 0)), P.Accent, 40, 0.9, P.Core)
@@ -507,7 +522,7 @@ local function meteorSack(ctx: Ctx)
 		end
 		ctx:Report("Quake", Kit.Without(ctx:Query(at + Vector3.new(0, 3, 0), 20), target), at)
 	end
-	ctx:Wait(0.5)
+	ctx:Until(track, "End")
 end
 
 local scripts: { [string]: MoveScript } = {

@@ -140,9 +140,11 @@ def render(case, out_dir, view):
         ground(length, "y")
         camera((60, length / 2, 3), (0, length / 2, 3), max(12, length + 7))
     else:
+        # The camera looks down -Y, so +X runs right-to-left on screen: lay frames out along -X
+        # (from the far end) so time reads left to right, like the side view
         for i, f in enumerate(frames):
             for part in f["parts"]:
-                add_part(part, Vector((i * spacing, 0, 0)), yaw=math.radians(-28))
+                add_part(part, Vector(((n - 1 - i) * spacing, 0, 0)), yaw=math.radians(-28))
         ground(length, "x")
         camera((length / 2, 60, 9), (length / 2, 0, 2.6), max(12, length + 7))
     lights()

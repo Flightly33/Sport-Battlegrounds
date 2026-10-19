@@ -95,13 +95,13 @@ end
 --------------------------------------------------------------------------------
 local M1: Kit.M1Set = {
 	Hits = {
-		{ Clip = C.KickA, Mirror = C.KickAL, Time = 0.13, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
-		{ Clip = C.KickB, Mirror = C.KickBL, Time = 0.14, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
-		{ Clip = C.KickA, Mirror = C.KickAL, Time = 0.13, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
-		{ Clip = C.KickFinisher, Mirror = C.KickFinisherL, Time = 0.24, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
+		{ Clip = C.KickA, Mirror = C.KickAL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
+		{ Clip = C.KickB, Mirror = C.KickBL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
+		{ Clip = C.KickA, Mirror = C.KickAL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
+		{ Clip = C.KickFinisher, Mirror = C.KickFinisherL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
 	},
-	Uppercut = { Clip = C.UpKick, Mirror = C.UpKickL, Time = 0.18, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
-	Downslam = { Clip = C.AxeKick, Mirror = C.AxeKickL, Time = 0.24, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
+	Uppercut = { Clip = C.UpKick, Mirror = C.UpKickL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
+	Downslam = { Clip = C.AxeKick, Mirror = C.AxeKickL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
 	Swing = function(ctx: Ctx, step: number, mirrored: boolean, position: Vector3)
 		local P = ctx.Palette
 		local frame = Kit.Frame(ctx)
@@ -141,14 +141,20 @@ end
 local function lightKick(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.LightKick)
-	Kit.LimbTrail(ctx, "RightFoot", P.Accent, 0.5, 0.25)
-	if not ctx:Wait(0.15) then
+	local kick = ctx:Play(C.LightKick)
+	if not ctx:Until(kick, "Plant") then
+		return
+	end
+	-- The plant foot lands: a short step into the ball
+	ctx:Forward(16, 0.1)
+	Kit.Dust(ctx, "LeftFoot", 0.7)
+	Kit.LimbTrail(ctx, "RightFoot", P.Accent, 0.55, 0.22)
+	if not ctx:Until(kick, "Contact") then
 		return
 	end
 	local origin = Kit.PropPosition(ctx) + Vector3.new(0, 0.4, 0)
 	local dir = ctx.Aim
-	FX.Flash(origin, P.Core, 3.2, 0.12)
+	Kit.Contact(ctx, origin, 1)
 	FX.Ring(CFrame.lookAt(origin, origin + dir) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 0.5, 3, 0.18, 0.3, 12)
 	FX.Sparks(origin, P.Accent, 6, 20, 0.35)
 	Sound.Play("Kick", origin)
@@ -174,7 +180,7 @@ local function lightKick(ctx: Ctx)
 			Sound.Play("Bounce", position)
 		end,
 	})
-	ctx:Wait(0.27)
+	ctx:Until(kick, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -214,7 +220,7 @@ end
 local function lightningShot(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.LightningShot)
+	local shot = ctx:Play(C.LightningShot)
 	-- Charge: blue lightning lights up the leg and crackles around the ball
 	local foot = ctx:Limb("RightFoot")
 	local shin = ctx:Limb("RightLowerLeg")
@@ -247,11 +253,16 @@ local function lightningShot(ctx: Ctx)
 		CameraFX.Shake(0.2)
 		CameraFX.FOVPunch(-5, 0.5)
 	end
-	if not ctx:Wait(0.6) then
+	if not ctx:Until(shot, "Plant") then
+		return
+	end
+	Kit.Dust(ctx, "LeftFoot", 1.1)
+	if not ctx:Until(shot, "Contact") then
 		return
 	end
 	local origin = Kit.PropPosition(ctx) + Vector3.new(0, 0.5, 0)
 	local dir = ctx.Aim
+	Kit.Contact(ctx, origin, 2.4)
 	FX.Flash(origin, P.Core, 7, 0.15)
 	FX.Shockwave(CFrame.lookAt(origin, origin + dir) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 7, 0.35, P.Core)
 	for _ = 1, 4 do
@@ -291,7 +302,7 @@ local function lightningShot(ctx: Ctx)
 			lightningExplosion(ctx, position, victim)
 		end,
 	})
-	ctx:Wait(0.35)
+	ctx:Until(shot, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -355,11 +366,12 @@ local function dribbleDash(ctx: Ctx)
 	if dashTrack then
 		dashTrack:Stop(0.04)
 	end
-	ctx:Play(C.Flick)
-	if not ctx:Wait(0.05) then
+	local flick = ctx:Play(C.Flick)
+	if not ctx:Until(flick, "Contact") then
 		return
 	end
 	local at = ctx.Root.Position + ctx.Root.CFrame.LookVector * 2.5
+	Kit.Contact(ctx, at, 1.5)
 	flickEffects(ctx, at)
 	if ctx.IsOwner then
 		if target then
@@ -369,7 +381,7 @@ local function dribbleDash(ctx: Ctx)
 			Kit.Front(ctx, "Flick", 3, Vector3.new(6, 7, 6))
 		end
 	end
-	ctx:Wait(0.28)
+	ctx:Until(flick, "End")
 end
 
 local function dribbleHit(hit: MoveRunner.HitInfo, palette: Palette)
@@ -387,10 +399,10 @@ end
 local function bicycleKick(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.BicycleKick)
+	local kick = ctx:Play(C.BicycleKick)
 	local frame = Kit.Frame(ctx)
 	Sound.Play("Whoosh", ctx.Root.Position, 0.7)
-	if not ctx:Wait(0.12) then
+	if not ctx:Until(kick, "Jump") then
 		return
 	end
 	ctx:Velocity(frame.LookVector * 16 + Vector3.new(0, 58, 0), 0.16)
@@ -403,11 +415,12 @@ local function bicycleKick(ctx: Ctx)
 	if foot then
 		FX.Crackle(foot, P.Primary, 0.5, 1.5, 20)
 	end
-	if not ctx:Wait(0.33) then
+	if not ctx:Until(kick, "Contact") then
 		return
 	end
 	local strike = ctx:Ground(ctx.Root.Position + frame.LookVector * 11)
 	local from = if foot then foot.Position else ctx.Root.Position
+	Kit.Contact(ctx, from, 2)
 	ctx:HideProp(true)
 	-- The ball is volleyed into the ground with the bolt riding on it
 	ctx:Projectile({
@@ -431,7 +444,7 @@ local function bicycleKick(ctx: Ctx)
 	ctx:Sphere("Kick", strike + Vector3.new(0, 3, 0), 10)
 	ctx:Sphere("Kick", ctx.Root.Position + frame.LookVector * 4, 7)
 	ctx:Velocity(Vector3.new(0, -70, 0), 0.15)
-	ctx:Wait(0.55)
+	ctx:Until(kick, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -439,7 +452,7 @@ end
 --------------------------------------------------------------------------------
 local function awaken(ctx: Ctx)
 	local P = ctx.Palette
-	Kit.Awaken(ctx, C.Awaken, 1.2, function(c: Ctx)
+	Kit.Awaken(ctx, C.Awaken, function(c: Ctx)
 		stormCloud(c.Root.Position + Vector3.new(0, 45, 0), P, 2.4, 30)
 		local ball = c:PropPart()
 		if ball then
@@ -465,18 +478,19 @@ railParams.FilterType = Enum.RaycastFilterType.Exclude
 local function railgun(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Railgun)
+	local strike = ctx:Play(C.Railgun)
 	local ball = ctx:PropPart()
 	if ball then
 		FX.Charge(ball, P.Accent, 0.35, 6)
 		FX.Crackle(ball, P.Primary, 0.38, 1.8, 26)
 	end
 	Sound.Play("Zap", ctx.Root.Position, 0.6)
-	if not ctx:Wait(0.38) then
+	if not ctx:Until(strike, "Contact") then
 		return
 	end
 	local origin = Kit.PropPosition(ctx)
 	local dir = ctx.Aim
+	Kit.Contact(ctx, origin, 2.5)
 	local ignore: { Instance } = { FX.Folder(), ctx.Character }
 	for _, name in { "Fighters", "Dummies" } do
 		local f = workspace:FindFirstChild(name)
@@ -515,7 +529,7 @@ local function railgun(ctx: Ctx)
 			ctx:Report("Beam", { victim }, if r and r:IsA("BasePart") then r.Position else mid)
 		end
 	end
-	ctx:Wait(0.3)
+	ctx:Until(strike, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -524,15 +538,12 @@ end
 local function volley(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Volley)
+	local track = ctx:Play(C.Volley)
 	ctx:Velocity(Vector3.new(0, 18, 0), 0.12)
-	local times = { 0.1, 0.25, 0.4, 0.55, 0.7 }
-	local elapsed = 0
-	for i, t in times do
-		if not ctx:Wait(t - elapsed) then
+	for i = 1, 5 do
+		if not ctx:Until(track, "Kick" .. i) then
 			return
 		end
-		elapsed = t
 		local right = i % 2 == 1
 		local foot = ctx:Limb(if right then "RightFoot" else "LeftFoot")
 		local origin = if foot then foot.Position else ctx.Root.Position
@@ -561,7 +572,7 @@ local function volley(ctx: Ctx)
 			end,
 		})
 	end
-	ctx:Wait(0.2)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -593,14 +604,16 @@ local function flashStep(ctx: Ctx)
 	FX.Lightning(from, to, P.Primary, { Thickness = 0.8, Duration = 0.3, Flickers = 2, Branches = 2, Core = P.Core })
 	FX.Flash(to, P.Core, 6, 0.15)
 	FX.Ring(CFrame.new(to - Vector3.new(0, 2.6, 0)), P.Primary, 1, 7, 0.25, 0.5)
-	ctx:Play(C.FlashStep)
+	local kick = ctx:Play(C.FlashStep)
 	Kit.LimbTrail(ctx, "RightFoot", P.Primary, 1, 0.35, 0.2)
-	if not ctx:Wait(0.2) then
+	if not ctx:Until(kick, "Contact") then
 		return
 	end
-	FX.Slash(Kit.Frame(ctx) * CFrame.new(0, -0.4, -1.2), P.Primary, { Radius = 5, Arc = 200, Width = 1.4, Duration = 0.2, Core = P.Core })
+	local frame = Kit.Frame(ctx)
+	Kit.Contact(ctx, (frame * CFrame.new(0, 0, -3)).Position, 2)
+	FX.Slash(frame * CFrame.new(0, -0.4, -1.2), P.Primary, { Radius = 5, Arc = 200, Width = 1.4, Duration = 0.2, Core = P.Core })
 	Kit.Front(ctx, "Kick", 3.4, Vector3.new(7, 6.5, 7))
-	ctx:Wait(0.4)
+	ctx:Until(kick, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -609,16 +622,17 @@ end
 local function storm(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Storm)
+	local track = ctx:Play(C.Storm)
 	local center = ctx:Ground(ctx:Ahead(24))
 	if ctx.IsOwner then
 		CameraFX.Orbit(ctx.Root, 0.9, 150, 200, 15, 1, 60)
 	end
-	if not ctx:Wait(0.3) then
+	if not ctx:Until(track, "Kick") then
 		return
 	end
 	-- Kick the ball into the clouds
 	local origin = Kit.PropPosition(ctx)
+	Kit.Contact(ctx, origin, 2)
 	ctx:HideProp(true)
 	ctx:Projectile({
 		Origin = origin,
@@ -633,7 +647,7 @@ local function storm(ctx: Ctx)
 	FX.Shockwave(CFrame.new(origin), P.Primary, 8, 0.4, P.Core)
 	Sound.Play("Kick", origin, 0.6)
 	stormCloud(center + Vector3.new(0, 55, 0), P, 2.1, 34)
-	if not ctx:Wait(0.3) then
+	if not ctx:Until(track, "Rain") then
 		return
 	end
 	-- Lightning rains down
@@ -650,10 +664,11 @@ local function storm(ctx: Ctx)
 		shake(point, 0.35, 100)
 		ctx:Sphere("Strike", point + Vector3.new(0, 3, 0), 9)
 	end
-	if not ctx:Wait(0.15) then
+	if not ctx:Until(track, "Bolt") then
 		return
 	end
 	-- The giant thunderbolt
+	Kit.Climax(ctx, center)
 	FX.Thunderbolt(center, P, 6)
 	FX.Thunderbolt(center + Vector3.new(3, 0, 2), P, 4)
 	FX.Explosion(center, P, 20, { Lightning = true, Fire = false, Crater = true })
@@ -662,7 +677,7 @@ local function storm(ctx: Ctx)
 	Sound.Play("Explosion", center, 0.8)
 	shake(center, 1.3, 200)
 	ctx:Sphere("Finale", center + Vector3.new(0, 4, 0), 22)
-	ctx:Wait(0.35)
+	ctx:Until(track, "End")
 end
 
 local scripts: { [string]: MoveScript } = {

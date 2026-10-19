@@ -65,13 +65,13 @@ end
 --------------------------------------------------------------------------------
 local M1: Kit.M1Set = {
 	Hits = {
-		{ Clip = C.Level, Time = 0.13 },
-		{ Clip = C.Chop, Time = 0.13 },
-		{ Clip = C.Backhand, Time = 0.13 },
-		{ Clip = C.PowerSwing, Time = 0.22 },
+		{ Clip = C.Level },
+		{ Clip = C.Chop },
+		{ Clip = C.Backhand },
+		{ Clip = C.PowerSwing },
 	},
-	Uppercut = { Clip = C.Golf, Time = 0.16 },
-	Downslam = { Clip = C.Smash, Time = 0.22 },
+	Uppercut = { Clip = C.Golf },
+	Downslam = { Clip = C.Smash },
 	Reach = 4,
 	Size = Vector3.new(7, 6, 6.5),
 	Swing = function(ctx: Ctx, step: number, _mirrored: boolean, position: Vector3)
@@ -141,12 +141,14 @@ end
 
 local function fastball(ctx: Ctx)
 	ctx:Face()
-	ctx:Play(C.Pitch)
-	if not ctx:Wait(0.28) then
+	local pitch = ctx:Play(C.Pitch)
+	if not ctx:Until(pitch, "Release") then
 		return
 	end
+	local hand = ctx:Limb("LeftHand")
+	Kit.Contact(ctx, if hand then hand.Position else ctx.Root.Position, 1)
 	throwBall(ctx, "Ball", ctx.Aim, 190)
-	ctx:Wait(0.22)
+	ctx:Until(pitch, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -155,11 +157,12 @@ end
 local function stolenBase(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Slide)
-	if not ctx:Wait(0.08) then
+	local slide = ctx:Play(C.Slide)
+	if not ctx:Until(slide, "Slide") then
 		return
 	end
 	local frame = Kit.Frame(ctx)
+	Kit.Dust(ctx, "RightFoot", 1.1)
 	local velocity = ctx:Velocity(frame.LookVector * 58 + Vector3.new(0, -10, 0), 0.4)
 	Sound.Play("Wind", ctx.Root.Position, 1.2)
 	if ctx.IsOwner then
@@ -180,11 +183,11 @@ local function stolenBase(ctx: Ctx)
 	if tripped and velocity then
 		velocity:Destroy()
 		local at = ctx.Root.Position + frame.LookVector * 3
-		FX.Flash(at, P.Core, 4, 0.12)
+		Kit.Contact(ctx, at, 1.4)
 		FX.Debris(at, 6, 22)
 		FX.Popup(at + Vector3.new(0, 3, 0), "SAFE!", Color3.new(1, 1, 1), 1.3)
 	end
-	ctx:Wait(0.15)
+	ctx:Until(slide, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -193,9 +196,9 @@ end
 local function lineDrive(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.LineDrive)
+	local swing = ctx:Play(C.LineDrive)
 	-- Toss
-	if not ctx:Wait(0.1) then
+	if not ctx:Until(swing, "Toss") then
 		return
 	end
 	local hand = ctx:Limb("LeftHand")
@@ -220,12 +223,13 @@ local function lineDrive(ctx: Ctx)
 	ctx:OnCleanup(function()
 		tossed:Destroy()
 	end)
-	if not ctx:Wait(0.3) then
+	if not ctx:Until(swing, "Contact") then
 		return
 	end
 	tossed:Destroy()
 	local tip = batTip(ctx)
 	local frame = Kit.Frame(ctx)
+	Kit.Contact(ctx, tip, 1.8)
 	gust(frame * CFrame.new(0, 0.4, -0.5), P, 6)
 	FX.Flash(tip, P.Core, 5, 0.12)
 	Sound.Play("BatCrack", tip)
@@ -258,7 +262,7 @@ local function lineDrive(ctx: Ctx)
 			Sound.Play("HeavyHit", position, 1.2)
 		end,
 	})
-	ctx:Wait(0.35)
+	ctx:Until(swing, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -281,7 +285,7 @@ end
 local function homeRun(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.HomeRun)
+	local swing = ctx:Play(C.HomeRun)
 	-- Wind gathers on the bat
 	local handle = ctx:PropPart()
 	if handle then
@@ -304,10 +308,11 @@ local function homeRun(ctx: Ctx)
 	if ctx.IsOwner then
 		CameraFX.FOVPunch(-6, 0.55)
 	end
-	if not ctx:Wait(0.62) then
+	if not ctx:Until(swing, "Contact") then
 		return
 	end
 	local frame = Kit.Frame(ctx)
+	Kit.Contact(ctx, batTip(ctx), 2.6)
 	gust(frame * CFrame.new(0, 0.3, -0.5), P, 8)
 	FX.Shockwave(CFrame.lookAt(ctx.Root.Position + frame.LookVector * 4, ctx.Root.Position + frame.LookVector * 5) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 9, 0.4, P.Core)
 	Sound.Play("BatCrack", ctx.Root.Position, 0.7)
@@ -315,7 +320,7 @@ local function homeRun(ctx: Ctx)
 		CameraFX.Shake(0.5)
 	end
 	Kit.Front(ctx, "Swing", 4, Vector3.new(9, 7, 9))
-	ctx:Wait(0.38)
+	ctx:Until(swing, "End")
 end
 
 local function homeRunHit(hit: MoveRunner.HitInfo, palette: Palette)
@@ -331,8 +336,10 @@ end
 --------------------------------------------------------------------------------
 local function awaken(ctx: Ctx)
 	local P = ctx.Palette
-	Kit.Awaken(ctx, C.Awaken, 1.2, function(c: Ctx)
-		task.wait(0.5)
+	Kit.Awaken(ctx, C.Awaken, function(c: Ctx)
+		if not c:Until(c.Tracks[#c.Tracks], "Call") then
+			return
+		end
 		local tip = batTip(c)
 		-- A beam of light from the bat into the sky: the called shot
 		FX.Beam(tip, tip + Vector3.new(0, 80, 0), P.Secondary, 1.5, 0.7, P.Core)
@@ -359,18 +366,15 @@ end
 --------------------------------------------------------------------------------
 local function rapidFire(ctx: Ctx)
 	ctx:Face()
-	ctx:Play(C.RapidFire)
-	local elapsed = 0
-	for i = 0, 5 do
-		local t = 0.1 + i * 0.12
-		if not ctx:Wait(t - elapsed) then
+	local track = ctx:Play(C.RapidFire)
+	for i = 1, 6 do
+		if not ctx:Until(track, "Throw" .. i) then
 			return
 		end
-		elapsed = t
 		local spread = Vector3.new((math.random() - 0.5) * 0.1, (math.random() - 0.5) * 0.04, (math.random() - 0.5) * 0.1)
 		throwBall(ctx, "Ball", (ctx.Aim + spread).Unit, 195)
 	end
-	ctx:Wait(0.15)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -378,11 +382,12 @@ end
 --------------------------------------------------------------------------------
 local function tornado(ctx: Ctx)
 	local P = ctx.Palette
-	ctx:Play(C.Tornado)
+	local track = ctx:Play(C.Tornado)
 	Sound.Play("Wind", ctx.Root.Position, 0.7)
 	local start = os.clock()
 	local nextPull = 0
-	while os.clock() - start < 1.2 and ctx:Alive() do
+	local launch = C.Tornado.Marks.Launch
+	while ctx:Alive() and (if track then track.Time < launch and not track.Stopped else os.clock() - start < launch) do
 		local base = ctx.Root.Position - Vector3.new(0, 2.8, 0)
 		FX.Spiral(CFrame.new(base) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 4 + math.random() * 2, 14, 0.35, 3)
 		FX.Spiral(CFrame.new(base) * CFrame.Angles(math.pi / 2, 0, 0), P.Secondary, 7, 10, 0.4, 2)
@@ -397,13 +402,14 @@ local function tornado(ctx: Ctx)
 		return
 	end
 	local at = ctx.Root.Position
+	Kit.Contact(ctx, at, 2.2)
 	FX.Explosion(at, P, 8, { Fire = false, Crater = false })
 	for i = 1, 3 do
 		gust(CFrame.new(at) * CFrame.Angles(0, i * 2.1, 0), P, 8)
 	end
 	Sound.Play("BatCrack", at, 0.8)
 	ctx:Sphere("Launch", at, 16)
-	ctx:Wait(0.1)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -422,7 +428,7 @@ end
 local function insideThePark(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.InsideThePark)
+	local track = ctx:Play(C.InsideThePark)
 	local target = ctx:Nearest(40)
 	local center = ctx:Ahead(9)
 	local r = target and target:FindFirstChild("HumanoidRootPart")
@@ -444,13 +450,10 @@ local function insideThePark(ctx: Ctx)
 			FX.Tween(line, 0.7, { Transparency = 1 })
 		end)
 	end
-	local elapsed = 0
 	for i, base in bases do
-		local t = 0.2 * i
-		if not ctx:Wait(t - elapsed - 0.06) then
+		if not ctx:Until(track, "Dash" .. i) then
 			return
 		end
-		elapsed = t - 0.06
 		local from = ctx.Root.Position
 		local look = Vector3.new(center.X - base.X, 0, center.Z - base.Z)
 		if ctx.IsOwner and look.Magnitude > 0.1 then
@@ -460,16 +463,16 @@ local function insideThePark(ctx: Ctx)
 		FX.Afterimage(ctx.Character, P.Primary, 0.3)
 		basePlate(base, P)
 		Sound.Play("Whoosh", base, 1.3)
-		if not ctx:Wait(0.06) then
+		if not ctx:Until(track, "Swing" .. i) then
 			return
 		end
-		elapsed = t
 		local to = ctx.Root.Position
 		FX.Beam(from, to, P.Secondary, 0.5, 0.2, P.Core)
 		gust(Kit.Frame(ctx) * CFrame.new(0, 0.3, -0.5), P, 4.5)
+		Kit.Contact(ctx, (Kit.Frame(ctx) * CFrame.new(0, 0, -3)).Position, if i == 4 then 2 else 1.2)
 		Kit.Front(ctx, "Base", 4, Vector3.new(7, 7, 7))
 	end
-	ctx:Wait(0.2)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -478,7 +481,7 @@ end
 local function walkOff(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.WalkOff)
+	local track = ctx:Play(C.WalkOff)
 	if ctx.IsOwner then
 		-- Low angle on the called shot
 		local root = ctx.Root
@@ -488,15 +491,20 @@ local function walkOff(ctx: Ctx)
 			return CFrame.lookAt(eye, base * Vector3.new(0, 3 + t * 2, 0))
 		end, 0.75, 55)
 	end
-	task.delay(0.3, function()
+	task.spawn(function()
+		-- The called shot: a beam from the bat tip into the sky
+		if not ctx:Until(track, "Call") then
+			return
+		end
 		local tip = batTip(ctx)
 		FX.Beam(tip, tip + Vector3.new(0, 120, 0), P.Secondary, 1.8, 0.5, P.Core)
 		FX.Sparks(tip, P.Secondary, 20, 20, 0.6)
 	end)
-	if not ctx:Wait(0.95) then
+	if not ctx:Until(track, "Contact") then
 		return
 	end
 	local frame = Kit.Frame(ctx)
+	Kit.Climax(ctx, batTip(ctx), 0.35, 0.18)
 	for i = 1, 3 do
 		gust(frame * CFrame.new(0, 0.3, -0.5) * CFrame.Angles(0, 0, (i - 2) * 0.25), P, 7 + i * 1.5)
 	end
@@ -507,7 +515,7 @@ local function walkOff(ctx: Ctx)
 		CameraFX.Shake(0.7)
 	end
 	if not ctx.IsOwner or #victims == 0 then
-		ctx:Wait(1.05)
+		ctx:Until(track, "End")
 		return
 	end
 	-- They twinkle in the sky... then come crashing back down

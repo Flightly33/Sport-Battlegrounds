@@ -25,8 +25,10 @@ local function stance(extra: Pose.Pose): Pose.Pose
 	return Pose.Merge(STANCE, extra)
 end
 
+-- Marks: Contact = the strike lands; Release = the ball leaves the hands.
+
 -- M1 #1: jab with the ball in the right hand. Hit at 0.12.
-Basketball.Jab = Clip("Basketball.Jab", { FadeIn = 0.04, FadeOut = 0.12 }, {
+Basketball.Jab = Clip("Basketball.Jab", { FadeIn = 0.04, FadeOut = 0.12, Marks = { Contact = 0.12 } }, {
 	{ 0, stance({ Waist = { -4, 20 }, RightShoulder = { 40, 0, 15 }, RightElbow = { 100 }, LeftShoulder = { 40, 0, -20 }, LeftElbow = { 90 }, Prop = { 0, 0, 0, -0.6, 2.6, -0.4 } }) },
 	{ 0.12, stance({ Root = { -12, -10, 0, 0, -0.35, -0.2 }, Waist = { -6, -28 }, Neck = { 6, 20 }, RightShoulder = { 88, 0, -4 }, RightElbow = { 2 }, LeftShoulder = { 30, 0, -25 }, LeftElbow = { 100 }, Prop = { -90, 0, 0, -0.75, 3.2, -2.1 } }), "Snap" },
 	{ 0.18, stance({ Root = { -12, -10, 0, 0, -0.35, -0.2 }, Waist = { -6, -26 }, Neck = { 6, 18 }, RightShoulder = { 86, 0, -4 }, RightElbow = { 8 }, LeftShoulder = { 30, 0, -25 }, LeftElbow = { 100 }, Prop = { -90, 0, 0, -0.75, 3.15, -2.0 } }) },
@@ -34,7 +36,7 @@ Basketball.Jab = Clip("Basketball.Jab", { FadeIn = 0.04, FadeOut = 0.12 }, {
 })
 
 -- M1 #2: left elbow. Hit at 0.12.
-Basketball.Elbow = Clip("Basketball.Elbow", { FadeIn = 0.04, FadeOut = 0.12 }, {
+Basketball.Elbow = Clip("Basketball.Elbow", { FadeIn = 0.04, FadeOut = 0.12, Marks = { Contact = 0.12 } }, {
 	{ 0, stance({ Waist = { -4, -25 }, LeftShoulder = { 60, 0, -50 }, LeftElbow = { 125 }, RightShoulder = { 20, 0, 20 }, RightElbow = { 60 }, Prop = BALL_RIGHT_HIP }) },
 	{ 0.12, stance({ Root = { -10, 20, 0, 0, -0.35, -0.15 }, Waist = { -6, 38 }, Neck = { 4, -30 }, LeftShoulder = { 92, 0, -8 }, LeftElbow = { 135 }, RightShoulder = { 10, 0, 25 }, RightElbow = { 50 }, Prop = BALL_RIGHT_HIP }), "Snap" },
 	{ 0.18, stance({ Root = { -10, 20, 0, 0, -0.35, -0.15 }, Waist = { -6, 36 }, Neck = { 4, -28 }, LeftShoulder = { 90, 0, -10 }, LeftElbow = { 132 }, RightShoulder = { 10, 0, 25 }, RightElbow = { 50 }, Prop = BALL_RIGHT_HIP }) },
@@ -42,7 +44,7 @@ Basketball.Elbow = Clip("Basketball.Elbow", { FadeIn = 0.04, FadeOut = 0.12 }, {
 })
 
 -- M1 #3: two-handed ball slam from overhead. Hit at 0.14.
-Basketball.Slam = Clip("Basketball.Slam", { FadeIn = 0.04, FadeOut = 0.12 }, {
+Basketball.Slam = Clip("Basketball.Slam", { FadeIn = 0.04, FadeOut = 0.12, Marks = { Contact = 0.14 } }, {
 	{ 0, stance({ Root = { 6, 0, 0, 0, -0.2, 0 }, Waist = { 8 }, RightShoulder = { 160, 0, 10 }, RightElbow = { 40 }, LeftShoulder = { 160, 0, -10 }, LeftElbow = { 40 }, Prop = BALL_OVERHEAD }) },
 	{ 0.14, stance({ Root = { -22, 0, 0, 0, -0.5, -0.2 }, Waist = { -18 }, Neck = { 18 }, RightShoulder = { 55, 0, -12 }, RightElbow = { 10 }, LeftShoulder = { 55, 0, 12 }, LeftElbow = { 10 }, Prop = { -180, 0, 0, -1.4, 1.6, -2.4 } }), "Snap" },
 	{ 0.2, stance({ Root = { -22, 0, 0, 0, -0.5, -0.2 }, Waist = { -16 }, Neck = { 16 }, RightShoulder = { 52, 0, -12 }, RightElbow = { 14 }, LeftShoulder = { 52, 0, 12 }, LeftElbow = { 14 }, Prop = { -180, 0, 0, -1.4, 1.5, -2.3 } }) },
@@ -50,7 +52,7 @@ Basketball.Slam = Clip("Basketball.Slam", { FadeIn = 0.04, FadeOut = 0.12 }, {
 })
 
 -- M1 #4: point-blank two-hand chest pass (knockback). Hit at 0.2.
-Basketball.ChestPassHit = Clip("Basketball.ChestPassHit", { FadeIn = 0.04, FadeOut = 0.15 }, {
+Basketball.ChestPassHit = Clip("Basketball.ChestPassHit", { FadeIn = 0.04, FadeOut = 0.15, Marks = { Contact = 0.2 } }, {
 	{ 0, stance({ Waist = { -4 }, RightShoulder = { 30, 0, -10 }, RightElbow = { 120 }, LeftShoulder = { 30, 0, 10 }, LeftElbow = { 120 }, Prop = BALL_CHEST }) },
 	{ 0.12, stance({ Root = { -4, 0, 0, 0, -0.45, 0.2 }, Waist = { 0 }, RightShoulder = { 25, 0, -8 }, RightElbow = { 135 }, LeftShoulder = { 25, 0, 8 }, LeftElbow = { 135 }, Prop = { 0, 0, 0, -1.4, 2.6, -0.5 } }) },
 	{ 0.2, stance({ Root = { -16, 0, 0, 0, -0.35, -0.5 }, Waist = { -8 }, Neck = { 10 }, RightShoulder = { 86, 0, -10 }, RightElbow = { 2 }, LeftShoulder = { 86, 0, 10 }, LeftElbow = { 2 }, Prop = { -90, 0, 0, -1.4, 2.9, -2.6 } }), "Snap" },
@@ -58,7 +60,7 @@ Basketball.ChestPassHit = Clip("Basketball.ChestPassHit", { FadeIn = 0.04, FadeO
 })
 
 -- M1 Uppercut variant: rising ball uppercut. Hit at 0.16.
-Basketball.Uppercut = Clip("Basketball.Uppercut", { FadeIn = 0.04, FadeOut = 0.15 }, {
+Basketball.Uppercut = Clip("Basketball.Uppercut", { FadeIn = 0.04, FadeOut = 0.15, Marks = { Contact = 0.16 } }, {
 	{ 0, stance({ Root = { -14, 0, 0, 0, -0.75, 0 }, Waist = { -10, 20 }, RightShoulder = { -20, 0, 20 }, RightElbow = { 60 }, Prop = { 0, 0, 0, -0.4, 0.9, -0.4 } }) },
 	{ 0.16, stance({ Root = { 16, 0, 0, 0, 0.2, 0 }, Waist = { 12, -20 }, Neck = { -15 }, RightShoulder = { 165, 0, 0 }, RightElbow = { 20 }, LeftShoulder = { -20, 0, -30 }, Prop = { -200, 0, 0, -0.9, 6.2, -1.2 } }), "Snap" },
 	{ 0.26, stance({ Root = { 14, 0, 0, 0, 0.15, 0 }, Waist = { 10, -18 }, Neck = { -12 }, RightShoulder = { 160, 0, 0 }, RightElbow = { 25 }, LeftShoulder = { -20, 0, -30 }, Prop = { -220, 0, 0, -0.9, 6.0, -1.1 } }) },
@@ -66,14 +68,14 @@ Basketball.Uppercut = Clip("Basketball.Uppercut", { FadeIn = 0.04, FadeOut = 0.1
 })
 
 -- M1 Downslam variant: mid-air dunk slam. Hit at 0.2.
-Basketball.Downslam = Clip("Basketball.Downslam", { FadeIn = 0.04, FadeOut = 0.15 }, {
+Basketball.Downslam = Clip("Basketball.Downslam", { FadeIn = 0.04, FadeOut = 0.15, Marks = { Contact = 0.2 } }, {
 	{ 0, { Root = { 10, 0, 0, 0, 0, 0 }, RightHip = { 60 }, RightKnee = { -90 }, LeftHip = { 10 }, LeftKnee = { -40 }, RightShoulder = { 170, 0, 10 }, RightElbow = { 30 }, LeftShoulder = { 120, 0, -20 }, Prop = BALL_OVERHEAD } },
 	{ 0.2, { Root = { -30, 0, 0, 0, -0.2, 0 }, RightHip = { 40 }, RightKnee = { -60 }, LeftHip = { 30 }, LeftKnee = { -50 }, Waist = { -20 }, Neck = { 20 }, RightShoulder = { 30, 0, 0 }, RightElbow = { 5 }, LeftShoulder = { 30, 0, -20 }, Prop = { -270, 0, 0, -0.8, 0.6, -2.2 } }, "Snap" },
 	{ 0.42, stance({ Prop = BALL_RIGHT_HIP }) },
 })
 
 -- 1: Ankle Breaker - crossover left, explode, left-hand ball jab at 0.35.
-Basketball.AnkleBreaker = Clip("Basketball.AnkleBreaker", { FadeIn = 0.03, FadeOut = 0.15 }, {
+Basketball.AnkleBreaker = Clip("Basketball.AnkleBreaker", { FadeIn = 0.03, FadeOut = 0.15, Marks = { Cross = 0.12, Contact = 0.35 } }, {
 	{ 0, stance({ Root = { -12, -10, -8, 0.5, -0.5, 0 }, Waist = { -6, 10 }, RightShoulder = { 20, 0, 30 }, RightElbow = { 60 }, LeftShoulder = { 30, 0, -40 }, LeftElbow = { 70 }, Prop = { 0, 0, 0, -0.3, 0.3, -0.5 } }) },
 	{ 0.12, stance({ Root = { -14, 12, 10, -0.6, -0.6, 0 }, Waist = { -8, -12 }, Neck = { 10, 8 }, RightShoulder = { 20, 0, 40 }, RightElbow = { 40 }, LeftShoulder = { 20, 0, -30 }, LeftElbow = { 60 }, Prop = { -360, 0, 0, -2.9, 0.25, -0.6 } }), "Out" },
 	{ 0.24, stance({ Root = { -16, 6, 6, -0.3, -0.55, -0.4 }, Waist = { -8, -20 }, Neck = { 12, 10 }, LeftShoulder = { 40, 0, -20 }, LeftElbow = { 90 }, RightShoulder = { 30, 0, 30 }, RightElbow = { 60 }, Prop = { -360, 0, 0, -2.2, 2.6, -0.7 } }) },
@@ -82,7 +84,7 @@ Basketball.AnkleBreaker = Clip("Basketball.AnkleBreaker", { FadeIn = 0.03, FadeO
 })
 
 -- 2: Chest Pass - ball leaves at 0.15.
-Basketball.ChestPass = Clip("Basketball.ChestPass", { FadeIn = 0.03, FadeOut = 0.15 }, {
+Basketball.ChestPass = Clip("Basketball.ChestPass", { FadeIn = 0.03, FadeOut = 0.15, Marks = { Release = 0.15 } }, {
 	{ 0, stance({ Waist = { -4 }, RightShoulder = { 30, 0, -10 }, RightElbow = { 120 }, LeftShoulder = { 30, 0, 10 }, LeftElbow = { 120 }, Prop = BALL_CHEST }) },
 	{ 0.08, stance({ Root = { -4, 0, 0, 0, -0.45, 0.2 }, RightShoulder = { 25, 0, -8 }, RightElbow = { 138 }, LeftShoulder = { 25, 0, 8 }, LeftElbow = { 138 }, Prop = { 0, 0, 0, -1.4, 2.6, -0.45 } }) },
 	{ 0.15, stance({ Root = { -14, 0, 0, 0, -0.35, -0.4 }, Waist = { -6 }, RightShoulder = { 84, 0, -8 }, RightElbow = { 2 }, RightWrist = { 30 }, LeftShoulder = { 84, 0, 8 }, LeftElbow = { 2 }, LeftWrist = { 30 } }), "Snap" },
@@ -90,7 +92,7 @@ Basketball.ChestPass = Clip("Basketball.ChestPass", { FadeIn = 0.03, FadeOut = 0
 })
 
 -- 3: Alley-Oop - crouch, explode upward, launch at 0.25.
-Basketball.AlleyOop = Clip("Basketball.AlleyOop", { FadeIn = 0.03, FadeOut = 0.18 }, {
+Basketball.AlleyOop = Clip("Basketball.AlleyOop", { FadeIn = 0.03, FadeOut = 0.18, Marks = { Launch = 0.25 } }, {
 	{ 0, stance({ Root = { -24, 0, 0, 0, -0.9, 0 }, Waist = { -14 }, RightShoulder = { 0, 0, -20 }, RightElbow = { 30 }, LeftShoulder = { 0, 0, 20 }, LeftElbow = { 30 }, Prop = { 0, 0, 0, -1.4, 0.9, -1.2 } }) },
 	{ 0.12, stance({ Root = { -26, 0, 0, 0, -1.0, 0 }, Waist = { -16 }, RightShoulder = { -10, 0, -20 }, RightElbow = { 30 }, LeftShoulder = { -10, 0, 20 }, LeftElbow = { 30 }, Prop = { 0, 0, 0, -1.4, 0.7, -1.1 } }) },
 	{ 0.25, stance({ Root = { 10, 0, 0, 0, 0.3, 0 }, Waist = { 12 }, Neck = { -24 }, RightShoulder = { 172, 0, -6 }, RightElbow = { 5 }, LeftShoulder = { 172, 0, 6 }, LeftElbow = { 5 }, Prop = { -180, 0, 0, -1.4, 8.0, -2.0 } }), "Snap" },
@@ -99,7 +101,7 @@ Basketball.AlleyOop = Clip("Basketball.AlleyOop", { FadeIn = 0.03, FadeOut = 0.1
 })
 
 -- 4: Slam Dunk - leap at 0.14, airborne with the ball overhead, slam at 0.62.
-Basketball.SlamDunk = Clip("Basketball.SlamDunk", { FadeIn = 0.04, FadeOut = 0.2 }, {
+Basketball.SlamDunk = Clip("Basketball.SlamDunk", { FadeIn = 0.04, FadeOut = 0.2, Marks = { Leap = 0.14, Dive = 0.48, Slam = 0.62 } }, {
 	{ 0, stance({ Root = { -20, 0, 0, 0, -0.8, 0 }, Waist = { -12 }, RightShoulder = { 30, 0, -10 }, RightElbow = { 110 }, LeftShoulder = { 30, 0, 10 }, LeftElbow = { 110 }, Prop = BALL_CHEST }) },
 	{ 0.14, { Root = { 6, 0, 0, 0, 0.2, 0 }, RightHip = { 95 }, RightKnee = { -110 }, LeftHip = { -10 }, LeftKnee = { -30 }, Waist = { 6 }, Neck = { -10 }, RightShoulder = { 120, 0, 10 }, RightElbow = { 60 }, LeftShoulder = { 110, 0, -10 }, LeftElbow = { 50 }, Prop = { -90, 0, 0, -0.9, 5.0, -0.8 } }, "Out" },
 	{ 0.48, { Root = { 12, 0, 0, 0, 0.3, 0 }, RightHip = { 100 }, RightKnee = { -115 }, LeftHip = { 20 }, LeftKnee = { -60 }, Waist = { 14 }, Neck = { -18 }, RightShoulder = { 178, 0, 10 }, RightElbow = { 30 }, LeftShoulder = { 90, 0, -20 }, LeftElbow = { 10 }, Prop = { -120, 0, 0, -0.6, 6.4, 0.3 } } },
@@ -117,7 +119,7 @@ do
 		table.insert(keys, Pose.Key( t + 0.15, stance({ Root = { 4, 0, 0, 0, 0.4, 0 }, Neck = { -12 }, RightShoulder = { 160, 0, 5 }, RightElbow = { 8 }, RightWrist = { -60 }, LeftShoulder = { 130, 0, -15 }, LeftElbow = { 40 } }), "Snap" ))
 	end
 	table.insert(keys, Pose.Key( 0.8, stance({ RightShoulder = { 35, 0, 18 }, RightElbow = { 60 }, Prop = BALL_RIGHT_HIP }) ))
-	Basketball.HeatCheck = Clip("Basketball.HeatCheck", { FadeIn = 0.04, FadeOut = 0.18 }, keys)
+	Basketball.HeatCheck = Clip("Basketball.HeatCheck", { FadeIn = 0.04, FadeOut = 0.18, Marks = { Shot1 = 0.15, Shot2 = 0.35, Shot3 = 0.55 } }, keys)
 end
 
 -- Awakened 2: Fast Break - blazing dribble sprint (0.6).
@@ -162,11 +164,11 @@ do
 	table.insert(keys, Pose.Key( 0.7, stance({ Root = { -4, 0, 0, 0, -0.5, 0.2 }, RightShoulder = { 25, 0, -8 }, RightElbow = { 138 }, LeftShoulder = { 25, 0, 8 }, LeftElbow = { 138 }, Prop = { 0, 0, 0, -1.4, 2.6, -0.45 } }) ))
 	table.insert(keys, Pose.Key( 0.8, stance({ Root = { -18, 0, 0, 0, -0.35, -0.6 }, Waist = { -8 }, RightShoulder = { 86, 0, -10 }, RightElbow = { 2 }, LeftShoulder = { 86, 0, 10 }, LeftElbow = { 2 }, Prop = { -90, 0, 0, -1.4, 2.9, -2.8 } }), "Snap" ))
 	table.insert(keys, Pose.Key( 1.0, stance({ RightShoulder = { 35, 0, 15 }, RightElbow = { 70 }, LeftShoulder = { 35, 0, -15 }, LeftElbow = { 70 }, Prop = BALL_RIGHT_HIP }) ))
-	Basketball.CrossoverCombo = Clip("Basketball.CrossoverCombo", { FadeIn = 0.03, FadeOut = 0.15 }, keys)
+	Basketball.CrossoverCombo = Clip("Basketball.CrossoverCombo", { FadeIn = 0.03, FadeOut = 0.15, Marks = { Strike1 = 0.1, Strike2 = 0.22, Strike3 = 0.34, Strike4 = 0.46, Strike5 = 0.58, Finish = 0.8 } }, keys)
 end
 
 -- Awakened 4: Supernova Dunk - crouch, soar with the sun overhead, slam at 1.5, land 1.6.
-Basketball.Supernova = Clip("Basketball.Supernova", { FadeIn = 0.05, FadeOut = 0.3 }, {
+Basketball.Supernova = Clip("Basketball.Supernova", { FadeIn = 0.05, FadeOut = 0.3, Marks = { Leap = 0.2, Apex = 0.45, Dive = 1.35, Slam = 1.5 } }, {
 	{ 0, stance({ Root = { -24, 0, 0, 0, -1.0, 0 }, Waist = { -14 }, RightShoulder = { 20, 0, -10 }, RightElbow = { 110 }, LeftShoulder = { 20, 0, 10 }, LeftElbow = { 110 }, Prop = BALL_CHEST }) },
 	{ 0.25, { Root = { 8, 0, 0, 0, 0.3, 0 }, RightHip = { 100 }, RightKnee = { -120 }, LeftHip = { 80 }, LeftKnee = { -120 }, Neck = { -20 }, RightShoulder = { 175, 0, -8 }, RightElbow = { 20 }, LeftShoulder = { 175, 0, 8 }, LeftElbow = { 20 }, Prop = { -180, 0, 0, -1.4, 6.6, -0.6 } }, "Out" },
 	{ 1.35, { Root = { 14, 0, 0, 0, 0.4, 0 }, RightHip = { 105 }, RightKnee = { -125 }, LeftHip = { 85 }, LeftKnee = { -125 }, Waist = { 14 }, Neck = { -24 }, RightShoulder = { 178, 0, -6 }, RightElbow = { 30 }, LeftShoulder = { 178, 0, 6 }, LeftElbow = { 30 }, Prop = { -900, 0, 0, -1.4, 7.0, 0.2 } } },
@@ -176,7 +178,7 @@ Basketball.Supernova = Clip("Basketball.Supernova", { FadeIn = 0.05, FadeOut = 0
 })
 
 -- Awakening: spins the ball on a finger, then flames erupt (2.2 s).
-Basketball.Awaken = Clip("Basketball.Awaken", { FadeIn = 0.1, FadeOut = 0.3 }, {
+Basketball.Awaken = Clip("Basketball.Awaken", { FadeIn = 0.1, FadeOut = 0.3, Marks = { Burst = 1.25 } }, {
 	{ 0, { Root = { 0, 0, 0, 0, -0.05, 0 }, RFoot = { 0.2, 0, 0, 0 }, LFoot = { -0.2, 0, 0, 0 }, Neck = { 10 }, RightShoulder = { 140, 0, 10 }, RightElbow = { 70 }, LeftShoulder = { 5, 0, -10 }, LeftElbow = { 20 }, Prop = { 0, 0, 0, -1.0, 6.0, -0.6 } } },
 	{ 1.0, { Root = { 0, 0, 0, 0, -0.05, 0 }, RFoot = { 0.2, 0, 0, 0 }, LFoot = { -0.2, 0, 0, 0 }, Neck = { 14 }, RightShoulder = { 142, 0, 10 }, RightElbow = { 72 }, LeftShoulder = { 5, 0, -10 }, LeftElbow = { 20 }, Prop = { 0, 1440, 0, -1.0, 6.0, -0.6 } } },
 	{ 1.25, { Root = { 10, 0, 0, 0, -0.3, 0 }, RFoot = { 0.45, 0, 0, 0 }, LFoot = { -0.45, 0, 0, 0 }, Waist = { 14 }, Neck = { 30 }, RightShoulder = { 30, 0, 90 }, RightElbow = { 30 }, LeftShoulder = { 30, 0, -90 }, LeftElbow = { 30 }, Prop = { 0, 1800, 0, -1.4, 7.5, -0.6 } }, "OutBack" },

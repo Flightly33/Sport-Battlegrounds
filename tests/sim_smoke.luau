@@ -696,6 +696,13 @@ local uniqueWarnings = {}
 for _, w in world.Warnings do
 	uniqueWarnings[w] = (uniqueWarnings[w] or 0) + 1
 end
+-- The animator and the move runner only warn about real problems (a missing mark, a body it can't
+-- animate, a script error)
+for w in uniqueWarnings do
+	if string.find(w, "[Animator]", 1, true) or string.find(w, "[MoveRunner]", 1, true) then
+		check(false, "warning: " .. w)
+	end
+end
 print("\n== warnings")
 for w, n in uniqueWarnings do
 	print(string.format("  (%dx) %s", n, w))

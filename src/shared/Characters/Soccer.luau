@@ -54,7 +54,7 @@ local Soccer: Types.Character = {
 			Slot = "1",
 			Description = "A quick snap shot. Small damage, short stun - a fast poke to start or extend combos.",
 			Cooldown = 4,
-			Busy = 0.42,
+			Busy = 0.45,
 			MaxTime = 1.1,
 			Hits = {
 				Ball = { Damage = 8, Stun = 1.0, Range = 78, Projectile = true, KnockBack = 16, KnockUp = 6, KnockTime = 0.15 },

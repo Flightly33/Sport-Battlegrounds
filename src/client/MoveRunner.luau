@@ -282,10 +282,11 @@ local function newCtx(character: Model, move: Move, token: number, aim: Vector3,
 		return track
 	end
 
-	-- Waits until `track` reaches its clip's mark `mark` (animation time: it pauses through
-	-- hit-stop and stretches with slow motion). Returns false if the move was interrupted.
+	-- Waits until `track` reaches its clip's mark `mark` ("End" = the end of the clip), in animation
+	-- time: it pauses through hit-stop and stretches with slow motion. Returns false if the move was
+	-- interrupted.
 	function ctx.Until(self: Ctx, track: Animator.Track?, mark: string): boolean
-		local at = if track then track.Clip.Marks[mark] else nil
+		local at = if not track then nil elseif mark == "End" then track.Clip.Length else track.Clip.Marks[mark]
 		if not track or not at then
 			warn("[MoveRunner] no mark", mark, "on", if track then track.Clip.Name else "(no track)", "for", self.Move.Id)
 			return self:Alive()

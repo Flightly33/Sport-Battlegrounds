@@ -80,13 +80,13 @@ end
 --------------------------------------------------------------------------------
 local M1: Kit.M1Set = {
 	Hits = {
-		{ Clip = C.Jab, Time = 0.12, Limb = "RightHand" },
-		{ Clip = C.Elbow, Time = 0.12, Limb = "LeftLowerArm" },
-		{ Clip = C.Slam, Time = 0.14, Limb = "RightHand" },
-		{ Clip = C.ChestPassHit, Time = 0.2, Limb = "RightHand" },
+		{ Clip = C.Jab, Limb = "RightHand" },
+		{ Clip = C.Elbow, Limb = "LeftLowerArm" },
+		{ Clip = C.Slam, Limb = "RightHand" },
+		{ Clip = C.ChestPassHit, Limb = "RightHand" },
 	},
-	Uppercut = { Clip = C.Uppercut, Time = 0.16, Limb = "RightHand" },
-	Downslam = { Clip = C.Downslam, Time = 0.2, Limb = "RightHand" },
+	Uppercut = { Clip = C.Uppercut, Limb = "RightHand" },
+	Downslam = { Clip = C.Downslam, Limb = "RightHand" },
 	Swing = function(ctx: Ctx, step: number, _mirrored: boolean, position: Vector3)
 		local P = ctx.Palette
 		local frame = Kit.Frame(ctx)
@@ -113,7 +113,7 @@ end
 local function ankleBreaker(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.AnkleBreaker)
+	local track = ctx:Play(C.AnkleBreaker)
 	local frame = Kit.Frame(ctx)
 	local ball = ctx:PropPart()
 	if ball then
@@ -125,19 +125,20 @@ local function ankleBreaker(ctx: Ctx)
 	Kit.Afterimages(ctx, P.Primary, 0.3, 0.06, 0.2)
 	Sound.Play("Bounce", ctx.Root.Position)
 	ctx:Velocity(frame.RightVector * 26, 0.1)
-	if not ctx:Wait(0.12) then
+	if not ctx:Until(track, "Cross") then
 		return
 	end
 	Sound.Play("Bounce", ctx.Root.Position, 1.2)
 	ctx:Velocity(-frame.RightVector * 20 + frame.LookVector * 48, 0.14)
 	FX.Smoke(ctx.Root.Position - Vector3.new(0, 2.6, 0), Color3.fromRGB(210, 200, 190), 6, 1.2, 0.6, 2)
-	if not ctx:Wait(0.23) then
+	if not ctx:Until(track, "Contact") then
 		return
 	end
 	local at = (Kit.Frame(ctx) * CFrame.new(0, 0, -3.5)).Position
+	Kit.Contact(ctx, at, 1.4)
 	flames(at, P, 1.2)
 	Kit.Front(ctx, "Jab", 3.6, Vector3.new(7, 6, 7.5))
-	ctx:Wait(0.2)
+	ctx:Until(track, "End")
 end
 
 local function ankleHit(hit: MoveRunner.HitInfo, palette: Palette)
@@ -159,11 +160,12 @@ end
 local function chestPass(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.ChestPass)
-	if not ctx:Wait(0.15) then
+	local pass = ctx:Play(C.ChestPass)
+	if not ctx:Until(pass, "Release") then
 		return
 	end
 	local origin = ctx.Root.Position + Kit.Frame(ctx).LookVector * 2.5 + Vector3.new(0, 0.6, 0)
+	Kit.Contact(ctx, origin, 1)
 	ctx:HideProp(true)
 	FX.Flash(origin, P.Core, 3.5, 0.12)
 	FX.Ring(CFrame.lookAt(origin, origin + ctx.Aim) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 0.5, 3.5, 0.2, 0.35, 14)
@@ -185,7 +187,7 @@ local function chestPass(ctx: Ctx)
 			Sound.Play("Bounce", position, 0.9)
 		end,
 	})
-	ctx:Wait(0.27)
+	ctx:Until(pass, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -194,7 +196,7 @@ end
 local function alleyOop(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.AlleyOop)
+	local track = ctx:Play(C.AlleyOop)
 	local ball = ctx:PropPart()
 	if ball then
 		local trail = FX.Trail(ball, P.Primary, 1.1, 0.3, P.Core)
@@ -202,10 +204,11 @@ local function alleyOop(ctx: Ctx)
 			trail:Destroy()
 		end)
 	end
-	if not ctx:Wait(0.25) then
+	if not ctx:Until(track, "Launch") then
 		return
 	end
 	local at = (Kit.Frame(ctx) * CFrame.new(0, 0, -3.5)).Position
+	Kit.Contact(ctx, at, 1.5)
 	local ground = FX.GroundBelow(at)
 	-- Pillar of fire shooting up through the target
 	FX.Emit(ground, {
@@ -225,7 +228,7 @@ local function alleyOop(ctx: Ctx)
 	hoop(ground + Vector3.new(0, 0.3, 0), P, 6)
 	Sound.Play("Fire", ground)
 	Kit.Front(ctx, "Launch", 3.5, Vector3.new(7, 10, 7.5), 2)
-	ctx:Wait(0.35)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -234,7 +237,7 @@ end
 local function slamDunk(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.SlamDunk)
+	local track = ctx:Play(C.SlamDunk)
 	local frame = Kit.Frame(ctx)
 	local distance = 14
 	local target = ctx:Nearest(34, 50)
@@ -244,7 +247,7 @@ local function slamDunk(ctx: Ctx)
 			distance = math.clamp((Vector3.new(r.Position.X, 0, r.Position.Z) - Vector3.new(ctx.Root.Position.X, 0, ctx.Root.Position.Z)).Magnitude - 2, 4, 32)
 		end
 	end
-	if not ctx:Wait(0.14) then
+	if not ctx:Until(track, "Leap") then
 		return
 	end
 	ctx:Velocity(frame.LookVector * (distance / 0.46) + Vector3.new(0, 55, 0), 0.22)
@@ -257,7 +260,7 @@ local function slamDunk(ctx: Ctx)
 			trail:Destroy()
 		end)
 	end
-	if not ctx:Wait(0.34) then
+	if not ctx:Until(track, "Dive") then
 		return
 	end
 	-- Meteor down
@@ -265,10 +268,11 @@ local function slamDunk(ctx: Ctx)
 	if ball then
 		FX.FireBurst(ball.Position, P.Secondary, P.Accent, 16, 1.5, 0.4)
 	end
-	if not ctx:Wait(0.14) then
+	if not ctx:Until(track, "Slam") then
 		return
 	end
 	local at = ctx:Ground(ctx.Root.Position + frame.LookVector * 2)
+	Kit.Contact(ctx, at + Vector3.new(0, 2, 0), 2.2)
 	FX.Explosion(at, P, 9, { Crater = true, Lightning = false })
 	hoop(at + Vector3.new(0, 0.3, 0), P, 12)
 	FX.Popup(at + Vector3.new(0, 6, 0), "SLAM!", P.Secondary, 2, 1)
@@ -284,7 +288,7 @@ local function slamDunk(ctx: Ctx)
 		ctx:Report("Posterize", air, at)
 		ctx:Report("Dunk", ground, at)
 	end
-	ctx:Wait(0.4)
+	ctx:Until(track, "End")
 end
 
 local function dunkHit(hit: MoveRunner.HitInfo, palette: Palette)
@@ -298,7 +302,7 @@ end
 --------------------------------------------------------------------------------
 local function awaken(ctx: Ctx)
 	local P = ctx.Palette
-	Kit.Awaken(ctx, C.Awaken, 1.25, function(c: Ctx)
+	Kit.Awaken(ctx, C.Awaken, function(c: Ctx)
 		local ball = c:PropPart()
 		if ball then
 			local trail = FX.Trail(ball, P.Primary, 1.2, 0.3, P.Core)
@@ -336,14 +340,12 @@ local GRAVITY = 110
 local function heatCheck(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.HeatCheck)
+	local track = ctx:Play(C.HeatCheck)
 	local target = ctx:Nearest(80, 40)
-	local elapsed = 0
-	for i, t in { 0.15, 0.35, 0.55 } do
-		if not ctx:Wait(t - elapsed) then
+	for i = 1, 3 do
+		if not ctx:Until(track, "Shot" .. i) then
 			return
 		end
-		elapsed = t
 		local landing: Vector3
 		local r = target and target:FindFirstChild("HumanoidRootPart")
 		if r and r:IsA("BasePart") then
@@ -375,7 +377,7 @@ local function heatCheck(ctx: Ctx)
 			end,
 		})
 	end
-	ctx:Wait(0.25)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -385,7 +387,8 @@ local function fastBreak(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
 	ctx:Play(C.FastBreak)
-	ctx:Forward(72, 0.48)
+	-- A full-speed sprint: the dash curve (quick ramp, held speed, soft stop), not a lunge
+	ctx:Dash(Kit.Frame(ctx).LookVector, 72 * 0.48, 0.48, 0.25)
 	Kit.Afterimages(ctx, P.Primary, 0.48, 0.06, 0.25)
 	if ctx.IsOwner then
 		CameraFX.SpeedLines(0.5, P.Secondary)
@@ -407,15 +410,12 @@ end
 local function crossoverCombo(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.CrossoverCombo)
+	local track = ctx:Play(C.CrossoverCombo)
 	ctx:Forward(14, 0.15)
-	local elapsed = 0
 	for i = 0, 4 do
-		local t = 0.1 + i * 0.12
-		if not ctx:Wait(t - elapsed) then
+		if not ctx:Until(track, "Strike" .. (i + 1)) then
 			return
 		end
-		elapsed = t
 		local at = (Kit.Frame(ctx) * CFrame.new((i % 2 == 0 and 0.8 or -0.8), 0.4, -3)).Position
 		FX.FireBurst(at, P.Secondary, P.Accent, 6, 0.9, 0.4)
 		FX.Slash(Kit.Frame(ctx) * CFrame.new(0, 0.3, -1) * CFrame.Angles(0, 0, (i % 2 == 0 and 0.4 or -0.4)), P.Primary, { Radius = 3, Arc = 100, Width = 0.7, Duration = 0.12, Reverse = i % 2 == 1, Core = P.Core })
@@ -423,17 +423,18 @@ local function crossoverCombo(ctx: Ctx)
 		ctx:Forward(10, 0.06)
 		Kit.Front(ctx, "Flurry", 3.2, Vector3.new(6.5, 6, 6.5))
 	end
-	if not ctx:Wait(0.8 - elapsed) then
+	if not ctx:Until(track, "Finish") then
 		return
 	end
 	local frame = Kit.Frame(ctx)
 	local at = (frame * CFrame.new(0, 0.5, -3)).Position
+	Kit.Contact(ctx, at, 2.2)
 	FX.Flash(at, P.Core, 7, 0.15)
 	FX.Emit(at, { Texture = FX.Textures.Fire, Color = P.Secondary, Color2 = P.Accent, Count = 40, Speed = NumberRange.new(40, 70), Spread = Vector2.new(25, 25), Size = FX.Seq(2, 0), Lifetime = NumberRange.new(0.25, 0.45) })
 	FX.Ring(CFrame.lookAt(at, at + frame.LookVector) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 1, 8, 0.3, 0.6, 18)
 	Sound.Play("Explosion", at, 1.6)
 	Kit.Front(ctx, "Finish", 3.5, Vector3.new(7, 6.5, 8))
-	ctx:Wait(0.2)
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
@@ -442,7 +443,7 @@ end
 local function supernova(ctx: Ctx)
 	local P = ctx.Palette
 	ctx:Face()
-	ctx:Play(C.Supernova)
+	local track = ctx:Play(C.Supernova)
 	local frame = Kit.Frame(ctx)
 	local target = ctx:Nearest(60, 50)
 	local landing = ctx:Ground(ctx:Ahead(16))
@@ -450,7 +451,7 @@ local function supernova(ctx: Ctx)
 	if r and r:IsA("BasePart") then
 		landing = ctx:Ground(r.Position)
 	end
-	if not ctx:Wait(0.2) then
+	if not ctx:Until(track, "Leap") then
 		return
 	end
 	ctx:Velocity(Vector3.new(0, 125, 0), 0.25)
@@ -458,7 +459,7 @@ local function supernova(ctx: Ctx)
 	if ctx.IsOwner then
 		CameraFX.Orbit(ctx.Root, 1.2, 160, 230, 22, -6, 60)
 	end
-	if not ctx:Wait(0.25) then
+	if not ctx:Until(track, "Apex") then
 		return
 	end
 	-- Hover while the ball becomes a sun
@@ -485,7 +486,7 @@ local function supernova(ctx: Ctx)
 		end
 	end)
 	Sound.Play("Fire", ctx.Root.Position, 0.5)
-	if not ctx:Wait(0.9) then
+	if not ctx:Until(track, "Dive") then
 		return
 	end
 	if hold then
@@ -498,9 +499,10 @@ local function supernova(ctx: Ctx)
 	sun:Destroy()
 	shell:Destroy()
 	FX.Beam(from, landing, P.Secondary, 6, 0.3, P.Core)
-	if not ctx:Wait(0.15) then
+	if not ctx:Until(track, "Slam") then
 		return
 	end
+	Kit.Climax(ctx, landing)
 	FX.Explosion(landing, P, 22, { Crater = true })
 	FX.Shockwave(CFrame.new(landing + Vector3.new(0, 0.3, 0)), P.Accent, 45, 0.9, P.Core)
 	hoop(landing + Vector3.new(0, 0.4, 0), P, 24)
@@ -513,7 +515,7 @@ local function supernova(ctx: Ctx)
 	Sound.Play("HeavyHit", landing, 0.6)
 	shake(landing, 1.4, 220)
 	ctx:Sphere("Nova", landing + Vector3.new(0, 4, 0), 22)
-	ctx:Wait(0.5)
+	ctx:Until(track, "End")
 end
 
 local scripts: { [string]: MoveScript } = {

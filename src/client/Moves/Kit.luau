@@ -1,6 +1,6 @@
 --[[
 	Kit: building blocks shared by the move scripts - the M1 chain, melee hitboxes, ball visuals,
-	limb trails and the awakening template.
+	limb trails, the anime contact / climax beats and the awakening template.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +10,7 @@ local Characters = require(Shared.Characters)
 local Pose = require(Shared.Anim.Pose)
 local Props = require(Shared.Props)
 
+local Animator = require(script.Parent.Parent.Animator)
 local CameraFX = require(script.Parent.Parent.CameraFX)
 local FX = require(script.Parent.Parent.FX)
 local MoveRunner = require(script.Parent.Parent.MoveRunner)
@@ -131,6 +132,35 @@ function Kit.LimbTrail(ctx: Ctx, limb: string, color: Color3, width: number, dur
 	end)
 end
 
+-- The contact frame: a white-hot flash where foot / fist / bat meets its target, a hair of hit-pause
+-- on the user (the pose "sticks" for a beat) and a camera kick for its owner. strength ~1 for pokes,
+-- 2 for heavy strikes, 3 for ultimates.
+function Kit.Contact(ctx: Ctx, at: Vector3, strength: number)
+	FX.Flash(at, ctx.Palette.Core, 2 + 1.6 * strength, 0.1)
+	FX.ImpactLines(at, ctx.Palette.Core, math.floor(4 + 3 * strength), 2 + 1.5 * strength, 0.14)
+	Animator.HitStop(ctx.Character, 0.02 + 0.02 * strength)
+	if ctx.IsOwner then
+		CameraFX.Shake(0.1 * strength)
+	end
+end
+
+-- An ultimate's big moment: a beat of slow motion, the manga impact frame and an FOV punch.
+function Kit.Climax(ctx: Ctx, at: Vector3, slow: number?, duration: number?)
+	Animator.SlowMo(slow or 0.3, duration or 0.2)
+	FX.Flash(at, ctx.Palette.Core, 14, 0.2)
+	if ctx.IsOwner then
+		CameraFX.ImpactFrame({ ctx.Character }, 0.12, ctx.Palette.Accent)
+		CameraFX.FOVPunch(12, 0.3)
+	end
+end
+
+-- A puff of turf where a foot plants.
+function Kit.Dust(ctx: Ctx, limb: string, size: number?)
+	local part = ctx:Limb(limb)
+	local at = if part then part.Position else ctx.Root.Position - Vector3.new(0, 2.6, 0)
+	FX.Smoke(at, Color3.fromRGB(205, 200, 188), 5, size or 0.9, 0.5, 1.5)
+end
+
 -- Spawns afterimages every `interval` for `duration`.
 function Kit.Afterimages(ctx: Ctx, color: Color3, duration: number, interval: number, fade: number?)
 	task.spawn(function()
@@ -145,7 +175,8 @@ end
 --------------------------------------------------------------------------------
 -- M1 chain
 --------------------------------------------------------------------------------
-export type M1Entry = { Clip: Pose.Clip, Mirror: Pose.Clip?, Time: number, Limb: string?, MirrorLimb: string? }
+-- Each clip carries a Contact mark: the frame the strike lands.
+export type M1Entry = { Clip: Pose.Clip, Mirror: Pose.Clip?, Limb: string?, MirrorLimb: string? }
 export type M1Set = {
 	Hits: { M1Entry }, -- 4 entries
 	Uppercut: M1Entry,
@@ -172,22 +203,25 @@ function Kit.M1(ctx: Ctx, set: M1Set)
 	end
 	local clip = if mirrored and entry.Mirror then entry.Mirror else entry.Clip
 	ctx:Face()
-	ctx:Play(clip)
+	local track = ctx:Play(clip)
 	local finisher = hitName ~= "Hit1" and hitName ~= "Hit2" and hitName ~= "Hit3"
+	-- Step into the strike: a short lunge, longer for the finisher
 	ctx:Forward(if finisher then 26 else 14, 0.1, if hitName == "Downslam" then -40 else nil)
 	local limb = if mirrored and entry.MirrorLimb then entry.MirrorLimb else entry.Limb
 	if limb then
-		Kit.LimbTrail(ctx, limb, ctx.Palette.Primary, 0.6, entry.Time + 0.12)
+		Kit.LimbTrail(ctx, limb, ctx.Palette.Primary, if finisher then 0.8 else 0.6, (clip.Marks.Contact or 0.15) + 0.12)
 	end
 	Sound.Play(if finisher then "HeavyWhoosh" else "Whoosh", ctx.Root.Position, if finisher then 0.9 else 1)
-	if not ctx:Wait(entry.Time) then
+	if not ctx:Until(track, "Contact") then
 		return
 	end
 	local reach = set.Reach or 3.4
 	local size = set.Size or Vector3.new(5.5, 6, 6)
 	local frame = Kit.Frame(ctx)
+	local at = (frame * CFrame.new(0, 0, -reach)).Position
+	Kit.Contact(ctx, at, if finisher then 1.6 else 0.7)
 	if set.Swing then
-		set.Swing(ctx, step, mirrored, (frame * CFrame.new(0, 0, -reach)).Position)
+		set.Swing(ctx, step, mirrored, at)
 	end
 	if hitName == "Uppercut" then
 		Kit.Front(ctx, hitName, reach, size + Vector3.new(0, 3, 0), 1)
@@ -196,32 +230,32 @@ function Kit.M1(ctx: Ctx, set: M1Set)
 	else
 		Kit.Front(ctx, hitName, reach, size)
 	end
-	ctx:Wait(math.max(0, clip.Length - entry.Time))
+	ctx:Until(track, "End")
 end
 
 --------------------------------------------------------------------------------
 -- Awakening template
 --------------------------------------------------------------------------------
--- Plays the class's transformation clip with a cinematic camera for its owner, calls `effects` at
--- the climax (`burstTime`), and blows nearby enemies back.
-function Kit.Awaken(ctx: Ctx, clip: Pose.Clip, burstTime: number, buildUp: (ctx: Ctx) -> (), burst: (ctx: Ctx, at: Vector3) -> ())
-	ctx:Play(clip)
+-- Plays the class's transformation clip with a cinematic camera for its owner, calls `burst` at the
+-- clip's Burst mark (the climax), and blows nearby enemies back.
+function Kit.Awaken(ctx: Ctx, clip: Pose.Clip, buildUp: (ctx: Ctx) -> (), burst: (ctx: Ctx, at: Vector3) -> ())
+	local track = ctx:Play(clip)
 	if ctx.IsOwner then
 		CameraFX.Orbit(ctx.Root, 2.1, -35, 65, 13, 2.5, 55)
 	end
 	Sound.Play("Awaken", ctx.Root.Position, 0.9)
 	task.spawn(buildUp, ctx)
-	if not ctx:Wait(burstTime) then
+	if not ctx:Until(track, "Burst") then
 		return
 	end
 	local at = ctx.Root.Position
 	burst(ctx, at)
 	ctx:Sphere("Burst", at, 16)
+	Kit.Climax(ctx, at, 0.4, 0.15)
 	if ctx.IsOwner then
 		CameraFX.Shake(0.8)
-		CameraFX.FOVPunch(10, 0.25)
 	end
-	ctx:Wait(clip.Length - burstTime)
+	ctx:Until(track, "End")
 end
 
 -- Rough "is this fighter in the air" check (used by Posterize / airborne bonuses).

@@ -259,6 +259,20 @@ local function waitFree(extra: number?)
 end
 
 local MoveRunner = client.Require(world.Services.StarterPlayer.StarterPlayerScripts.Client:WaitForChild("MoveRunner"))
+-- Record every named sound the client plays (one-shots and attached loops)
+local ClientSound = client.Require(world.Services.StarterPlayer.StarterPlayerScripts.Client:WaitForChild("Sound"))
+local soundsPlayed: { [string]: number } = {}
+do
+	local play, attach = ClientSound.Play, ClientSound.Attach
+	ClientSound.Play = function(name, ...)
+		soundsPlayed[name] = (soundsPlayed[name] or 0) + 1
+		return play(name, ...)
+	end
+	ClientSound.Attach = function(name, ...)
+		soundsPlayed[name] = (soundsPlayed[name] or 0) + 1
+		return attach(name, ...)
+	end
+end
 local function use(slot: string, settle: number?)
 	local before = #requests
 	local p = startProbe(slot)
@@ -506,6 +520,17 @@ for _, classId in classes do
 	world:Run(0.5)
 end
 
+-- Every Soccer sound set in AssetIds played at least once
+if table.find(classes, "Soccer") then
+	local silent = {}
+	for _, name in { "SoccerM1_1", "SoccerM1_2", "SoccerM1_3", "SoccerM1_4", "SoccerBallKick", "SoccerBallHit", "SoccerLightningShot", "SoccerDribbleRun", "SoccerDribbleKick", "SoccerLightning", "SoccerBicycleLeap", "SoccerBicycleImpact", "SoccerAwakenIntro", "SoccerAwakenElectricity", "SoccerAwakenTheme" } do
+		if not soundsPlayed[name] then
+			table.insert(silent, name)
+		end
+	end
+	print("[test] soccer sounds never played: " .. (if #silent > 0 then table.concat(silent, ", ") else "none"))
+	check(#silent == 0, "every soccer sound plays")
+end
 print("== dashes")
 do
 	local dash = ServerConfig.Dash

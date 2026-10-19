@@ -18,9 +18,9 @@ Rojo project in Luau.
 If any of these still fail in Studio, ask the user for the Output window's errors and warnings.
 
 ## Layout
-- `src/shared`: Config, Remotes, AssetIds (manual asset IDs), AudioCatalog (audio search terms), Characters/ (move data), Anim/ (rig, poses, clips, locomotion styles), Stadium/ (Layout, Builder, CrowdLayout).
+- `src/shared`: Config, Remotes, AssetIds (manual asset IDs; the owner's Soccer sound IDs live in AssetIds.Sounds), Skins (prop skins; free for everyone until game passes are set up), AudioCatalog (audio search terms), Characters/ (move data), Anim/ (rig, poses, clips, locomotion styles), Stadium/ (Layout, Builder, CrowdLayout).
 - `src/server`: CombatService (hits, stun, block, meters), MoveService (validates client moves and hits), CharacterService (spawns R15 from a description; CharacterAutoLoads is off), DummyService (training dummies plus a noob at centre field), MatchService, AudioService (`AssetService:SearchAudioAsync` at startup, publishes on `ReplicatedStorage.Audio`).
-- `src/client`: Animator (procedural, plus hit-stop and slow-mo), MoveRunner plus Moves/ (per-class move scripts; Moves/Kit holds the shared M1 chain and the Contact / Climax beats), Motion (moves the local character), Controller (input, aim assist), FX/ (VFX built from parts and particles, plus optional Blender-pack hooks), CameraFX, Sound, Music, Crowd, StadiumFX, UI/.
+- `src/client`: Animator (procedural, plus hit-stop and slow-mo), MoveRunner plus Moves/ (per-class move scripts; Moves/Kit holds the shared M1 chain and the Contact / Climax beats), Motion (moves the local character), Controller (input, aim assist), FX/ (VFX built from parts and particles, plus optional Blender-pack hooks), CameraFX, Sound, Music, Crowd, StadiumFX, SkyShow (helicopter and billboard blimps), Awakenings (auras and awakening theme music), UI/.
 - `map/Stadium.rbxm`: baked stadium. Rebake with `lune run tools/lune/bake_stadium.luau` after any Layout or Builder change.
 - `blender/build_pack.py`: generates the OBJ meshes and PNG textures in `blender/out/`. Uploaded IDs go into AssetIds.
 

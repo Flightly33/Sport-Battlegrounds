@@ -16,6 +16,7 @@ local Characters = require(Shared.Characters)
 local Props = require(Shared.Props)
 local Remotes = require(Shared.Remotes)
 local Rig = require(Shared.Anim.Rig)
+local Skins = require(Shared.Skins)
 local StadiumLayout = require(Shared.Stadium.Layout)
 
 local AwakenVFX = require(script.Parent.AwakenVFX)
@@ -50,6 +51,36 @@ local function getDescription(player: Player): HumanoidDescription
 	description.SwimAnimation = 0
 	descriptions[player] = description
 	return description:Clone()
+end
+
+-- Game pass checks, cached per player and pass
+local passCache: { [Player]: { [number]: boolean } } = {}
+local function ownsPass(player: Player, passId: number): boolean
+	local cache = passCache[player]
+	if not cache then
+		cache = {}
+		passCache[player] = cache
+	end
+	if cache[passId] == nil then
+		local ok, owns = pcall(function()
+			return game:GetService("MarketplaceService"):UserOwnsGamePassAsync(player.UserId, passId)
+		end)
+		cache[passId] = ok and owns == true
+	end
+	return cache[passId]
+end
+
+-- The ball skin a player wears for `classId`: the first one they own (everyone owns them all until
+-- the game passes are live, see Shared/Skins).
+local function skinFor(player: Player, classId: string): string?
+	for id, skin in Skins.List do
+		if skin.Class == classId then
+			if Skins.FREE_FOR_EVERYONE or (skin.GamePassId > 0 and ownsPass(player, skin.GamePassId)) then
+				return id
+			end
+		end
+	end
+	return nil
 end
 
 -- A spawn point on the pitch, as far as possible from everyone else.
@@ -136,6 +167,7 @@ local function spawnNow(player: Player)
 		print(string.format("[CharacterService] %s spawned %.1f studs tall (about %.2f m at Roblox's 0.28 m per stud)", player.Name, model:GetExtentsSize().Y, model:GetExtentsSize().Y * 0.28))
 	end
 
+	model:SetAttribute("BallSkin", skinFor(player, classId))
 	Props.Attach(model, classId)
 	CombatService.Register(model, player, classId)
 	AwakenVFX.Attach(model)
@@ -201,6 +233,7 @@ local function onSelect(player: Player, classId: unknown)
 		return
 	end
 	CombatService.SetClass(fighter, classId)
+	fighter.Model:SetAttribute("BallSkin", skinFor(player, classId))
 	Props.Attach(fighter.Model, classId)
 end
 
@@ -223,6 +256,7 @@ function CharacterService.Init()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		descriptions[player] = nil
+		passCache[player] = nil
 		spawning[player] = nil
 		deadSince[player] = nil
 		reported[player] = nil

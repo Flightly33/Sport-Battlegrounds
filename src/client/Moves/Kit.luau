@@ -40,9 +40,9 @@ function Kit.Frame(ctx: Ctx): CFrame
 end
 
 -- A loose ball for projectiles (anchored, so it can be moved freely).
-function Kit.Ball(classId: string, scale: number?): () -> Instance
+function Kit.Ball(classId: string, scale: number?, skin: unknown?): () -> Instance
 	return function(): Instance
-		local model = Props.BuildBall(classId, true)
+		local model = Props.BuildBall(classId, true, skin)
 		if scale and scale ~= 1 then
 			model:ScaleTo(scale)
 		end
@@ -51,9 +51,9 @@ function Kit.Ball(classId: string, scale: number?): () -> Instance
 end
 
 -- Ball visual with a glowing shell and a light around it.
-function Kit.GlowBall(classId: string, color: Color3, glowSize: number, scale: number?): () -> Instance
+function Kit.GlowBall(classId: string, color: Color3, glowSize: number, scale: number?, skin: unknown?): () -> Instance
 	return function(): Instance
-		local model = Props.BuildBall(classId, true)
+		local model = Props.BuildBall(classId, true, skin)
 		if scale and scale ~= 1 then
 			model:ScaleTo(scale)
 		end
@@ -185,6 +185,7 @@ export type M1Set = {
 	Reach: number?,
 	-- Swing effect at the moment of the hit (both modes)
 	Swing: ((ctx: Ctx, step: number, mirrored: boolean, position: Vector3) -> ())?,
+	Sounds: { string }?, -- a sound per combo hit (1-4) on the contact frame; the enders use the 4th
 }
 
 -- Runs one click of the chain; ctx.Variant is "<step><leg>" ("1L", "4R", "UL", "DR").
@@ -220,6 +221,13 @@ function Kit.M1(ctx: Ctx, set: M1Set)
 	local frame = Kit.Frame(ctx)
 	local at = (frame * CFrame.new(0, 0, -reach)).Position
 	Kit.Contact(ctx, at, if finisher then 1.6 else 0.7)
+	if set.Sounds then
+		local name = set.Sounds[math.clamp(step, 1, #set.Sounds)]
+		if hitName == "Uppercut" or hitName == "Downslam" then
+			name = set.Sounds[#set.Sounds]
+		end
+		Sound.Play(name, at)
+	end
 	if set.Swing then
 		set.Swing(ctx, step, mirrored, at)
 	end
@@ -238,12 +246,19 @@ end
 --------------------------------------------------------------------------------
 -- Plays the class's transformation clip with a cinematic camera for its owner, calls `burst` at the
 -- clip's Burst mark (the climax), and blows nearby enemies back.
-function Kit.Awaken(ctx: Ctx, clip: Pose.Clip, buildUp: (ctx: Ctx) -> (), burst: (ctx: Ctx, at: Vector3) -> ())
+function Kit.Awaken(ctx: Ctx, clip: Pose.Clip, buildUp: (ctx: Ctx) -> (), burst: (ctx: Ctx, at: Vector3) -> (), intro: { string }?)
 	local track = ctx:Play(clip)
 	if ctx.IsOwner then
 		CameraFX.Orbit(ctx.Root, 2.1, -35, 65, 13, 2.5, 55)
 	end
-	Sound.Play("Awaken", ctx.Root.Position, 0.9)
+	-- The class's own intro sounds, or the shared one
+	if intro then
+		for _, name in intro do
+			Sound.Play(name, ctx.Root.Position)
+		end
+	else
+		Sound.Play("Awaken", ctx.Root.Position, 0.9)
+	end
 	task.spawn(buildUp, ctx)
 	if not ctx:Until(track, "Burst") then
 		return

@@ -10,6 +10,7 @@
 local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
@@ -187,6 +188,34 @@ function Sound.Play(name: string, position: Vector3?, pitch: number?, volume: nu
 		end)
 	end
 	sound:Play()
+end
+
+-- A named sound parented to `parent` (a part, so it follows it) or, with no parent, 2D on the
+-- listener, for sounds longer than a one-shot: looped runs, music. The caller stops / destroys it.
+function Sound.Attach(name: string, parent: Instance?, looped: boolean?, volume: number?): Sound?
+	local def = definition(name)
+	if not def then
+		return nil
+	end
+	local sound = Instance.new("Sound")
+	sound.Name = "SB_" .. name
+	sound.SoundId = def.Id
+	sound.Volume = def.Volume * (volume or 1)
+	sound.PlaybackSpeed = def.Pitch
+	sound.Looped = looped == true
+	sound.RollOffMinDistance = 25
+	sound.RollOffMaxDistance = 300
+	sound.SoundGroup = group("SFX")
+	sound.Parent = parent or SoundService
+	sound:Play()
+	return sound
+end
+
+-- Fades a sound group (e.g. "Music") to `scale` x its normal volume, for ducking under a theme.
+function Sound.Duck(groupName: string, scale: number, time: number?)
+	local g = group(groupName)
+	local base = if groupName == "SFX" then Config.Audio.SfxVolume else 1
+	TweenService:Create(g, TweenInfo.new(time or 0.8), { Volume = base * scale }):Play()
 end
 
 local function loopId(name: string): string?

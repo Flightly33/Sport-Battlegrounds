@@ -314,7 +314,24 @@ function StadiumFX.Init()
 			setScreens("SPORTS BATTLEGROUNDS", "WHO RULES THE STADIUM?", nil)
 		end)
 	end)
-	Sound.Loop("CrowdAmbience", Config.Audio.AmbienceVolume)
+	-- The crowd loop plays all the time, quietly in the middle of the pitch and swelling as you get
+	-- near the stands
+	local ambience = Sound.Loop("CrowdAmbience", Config.Audio.AmbienceVolume)
+	local level = Config.Audio.AmbienceVolume
+	task.spawn(function()
+		while ambience.Parent do
+			local camera = workspace.CurrentCamera
+			if camera then
+				local audio = Config.Audio
+				local inside = Layout.InsideDistance(camera.CFrame.Position)
+				local near = 1 - math.clamp(inside / audio.AmbienceWallRange, 0, 1)
+				local target = audio.AmbienceVolume * (1 + near * (audio.AmbienceNearWall - 1))
+				level += (target - level) * 0.3
+				ambience.Volume = level
+			end
+			task.wait(0.2)
+		end
+	end)
 end
 
 return StadiumFX

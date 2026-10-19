@@ -153,7 +153,9 @@ Config.GamepadKeys = {
 Config.Audio = {
 	Search = true,
 	MusicVolume = 0.22,
-	AmbienceVolume = 0.35,
+	AmbienceVolume = 0.15, -- the stadium crowd loop, kept quiet...
+	AmbienceNearWall = 2.6, -- ...and this many times louder right by the stadium wall
+	AmbienceWallRange = 70, -- studs from the wall over which it swells
 	SfxVolume = 1,
 	MusicToggleKey = Enum.KeyCode.N,
 }

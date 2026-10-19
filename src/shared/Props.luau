@@ -6,6 +6,8 @@
 	(Props.BuildBall) for projectiles.
 ]]
 
+local Skins = require(script.Parent.Skins)
+
 local Props = {}
 
 local PROP_HANDLE = "SB_PropHandle"
@@ -148,11 +150,15 @@ local BALLS: { [string]: (CFrame) -> { Part } } = {
 }
 
 -- A loose ball model (projectiles, held baseballs). PrimaryPart is the core sphere.
-function Props.BuildBall(classId: string, anchored: boolean?): Model
+function Props.BuildBall(classId: string, anchored: boolean?, skinId: unknown?): Model
 	local model = Instance.new("Model")
 	model.Name = classId .. "Ball"
 	local build: (CFrame) -> { Part } = BALLS[classId] or soccerBall
 	local parts = build(CFrame.identity)
+	local skin = Skins.Get(skinId, classId)
+	if skin then
+		skin.Apply(parts)
+	end
 	local core = parts[1]
 	for i, p in parts do
 		p.Anchored = anchored == true
@@ -339,7 +345,12 @@ function Props.Attach(character: Model, classId: string): BasePart?
 	handle.Transparency = 1
 	handle.CFrame = part0.CFrame * rest
 	handle.Parent = folder
-	for _, p in info.Build(handle.CFrame) do
+	local built = info.Build(handle.CFrame)
+	local skin = Skins.Get(character:GetAttribute("BallSkin"), classId)
+	if skin then
+		skin.Apply(built)
+	end
+	for _, p in built do
 		p.Parent = folder
 		weld(handle, p)
 	end

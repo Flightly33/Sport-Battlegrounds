@@ -55,6 +55,23 @@ AssetIds.Sounds = {
 	KO = "",
 	Click = "",
 	Ping = "",
+
+	-- Soccer (ids from the owner)
+	SoccerM1_1 = "114637695466966", -- M1 combo hits 1-4
+	SoccerM1_2 = "130907980308479",
+	SoccerM1_3 = "119801699610817",
+	SoccerM1_4 = "87240804552787",
+	SoccerBallKick = "9119327493", -- Light Kick: foot meets the ball
+	SoccerBallHit = "109316755832781", -- Light Kick: the ball hits an enemy
+	SoccerLightningShot = "110208060085134",
+	SoccerDribbleRun = "103677674954702", -- Lightning Dribble Dash: the run (looped while dashing)
+	SoccerDribbleKick = "87240804552787", -- Lightning Dribble Dash: the flick's impact
+	SoccerLightning = "136437776813407", -- dribble dash flick and bicycle kick bolt
+	SoccerBicycleLeap = "123867785814212",
+	SoccerBicycleImpact = "74149238738530",
+	SoccerAwakenIntro = "18173968754", -- awakening cinematic
+	SoccerAwakenElectricity = "134540810991378",
+	SoccerAwakenTheme = "126981868995896", -- music for the whole awakening
 }
 
 -- Background music ids, played shuffled. Leave empty to use the audio-library search.

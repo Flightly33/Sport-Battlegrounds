@@ -66,6 +66,11 @@ Config.Dash = {
 	EaseOut = 0.4,
 	EndSpeed = 0.18,
 	Carry = 0.3, -- share of the final speed kept after the dash, so it doesn't stop dead
+	-- Running into an enemy mid-dash stops the dash and throws the class's strike (kick / punch /
+	-- forearm / bat swing). Damage and knockback are the Dash moves' Catch and Strike hits.
+	StrikeReach = 3.2, -- how far ahead of the body an enemy counts as "ran into" (studs)
+	StrikeSize = Vector3.new(5, 6, 4), -- the contact box in front of the body
+	StrikeWindow = 1.0, -- the strike must land within this long of the dash starting (s)
 }
 
 -- Dashes, lunges, leaps and slides (Client/Motion).

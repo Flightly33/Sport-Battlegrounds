@@ -88,12 +88,17 @@ local function dash(id: string, cooldown: number): Move
 		Name = "Dash",
 		Class = "Common",
 		Slot = "Dash",
-		Description = "Dash in the direction you're moving.",
+		Description = "Dash in the direction you're moving. Run into an enemy and you strike them.",
 		Cooldown = cooldown,
 		Busy = Config.Dash.Duration,
-		MaxTime = 0,
+		MaxTime = Config.Dash.StrikeWindow,
 		Aerial = true,
-		Hits = {},
+		Hits = {
+			-- The body check when the dash runs into someone (holds them for the strike)...
+			Catch = { Damage = 2, Stun = 0.6, Range = 10, HitStop = 0.04 },
+			-- ...then the class's strike on its contact frame
+			Strike = { Damage = 6, Stun = 0.9, Range = 12, KnockBack = 28, KnockUp = 10, KnockTime = 0.18, HitStop = 0.08 },
+		},
 	}
 end
 

@@ -560,6 +560,23 @@ do
 	local inside = insideArena(player.Character:FindFirstChild("HumanoidRootPart").Position)
 	print(string.format("[test] dash at the wall stopped %.1f studs inside it", inside))
 	check(inside >= 1, string.format("dash stops at the arena wall (%.1f studs inside)", inside))
+
+	-- Dashing into an enemy stops on them and throws the class's strike
+	for _, classId in classes do
+		switchClass(classId)
+		ready()
+		faceDummy(1, 10)
+		local root = player.Character:FindFirstChild("HumanoidRootPart")
+		local before = { Catch = hits["Dash_Front.Catch"] or 0, Strike = hits["Dash_Front.Strike"] or 0 }
+		local start = root.Position
+		use("Dash", 1.2)
+		local caught = (hits["Dash_Front.Catch"] or 0) > before.Catch
+		local struck = (hits["Dash_Front.Strike"] or 0) > before.Strike
+		local travelled = (root.Position - start) * Vector3.new(1, 0, 1)
+		print(string.format("[test] %s dash into a dummy: caught=%s struck=%s, stopped after %.1f studs", classId, tostring(caught), tostring(struck), travelled.Magnitude))
+		check(caught and struck, classId .. " dash strikes the enemy it runs into")
+		check(travelled.Magnitude < 14, classId .. " dash stops at the enemy instead of running through")
+	end
 end
 
 print("== knockback on a dummy")

@@ -12,11 +12,14 @@
 
 local Layout = {}
 
-Layout.PITCH_HALF_X = 150
-Layout.PITCH_HALF_Z = 100
-Layout.BARRIER_HALF_X = 182
-Layout.BARRIER_HALF_Z = 128
-Layout.CORNER_RADIUS = 45
+-- The arena floor (twice the original 300 x 200 pitch). Everything else - track, stands, roof,
+-- floodlights, spawns - is laid out from these.
+Layout.SCALE = 2
+Layout.PITCH_HALF_X = 150 * Layout.SCALE
+Layout.PITCH_HALF_Z = 100 * Layout.SCALE
+Layout.BARRIER_HALF_X = 182 * Layout.SCALE
+Layout.BARRIER_HALF_Z = 128 * Layout.SCALE
+Layout.CORNER_RADIUS = 45 * Layout.SCALE
 Layout.BARRIER_HEIGHT = 6
 
 export type Tier = {
@@ -163,10 +166,15 @@ function Layout.RandomSpawn(rng: Random): Vector3
 	return Vector3.new(x, 4, z)
 end
 
+-- The practice noob stands on the centre spot, facing the west goal.
+function Layout.CenterSpot(): CFrame
+	return CFrame.lookAt(Vector3.new(0, 3, 0), Vector3.new(-1, 3, 0))
+end
+
 -- Training dummies stand on the track behind the east goal.
 function Layout.DummySpots(count: number): { CFrame }
 	local spots: { CFrame } = {}
-	local x = Layout.PITCH_HALF_X + 17
+	local x = Layout.PITCH_HALF_X + 17 * Layout.SCALE
 	for i = 1, count do
 		local z = (i - (count + 1) / 2) * 12
 		table.insert(spots, CFrame.lookAt(Vector3.new(x, 3, z), Vector3.new(0, 3, z)))

@@ -181,7 +181,7 @@ end
 local function centerLogo(parent: Instance)
 	local plate = part(parent, {
 		Name = "CenterLogo",
-		Size = Vector3.new(44, 0.05, 44),
+		Size = Vector3.new(44, 0.05, 44) * Vector3.new(Layout.SCALE, 1, Layout.SCALE),
 		CFrame = CFrame.new(0, 0.07, 0),
 		Transparency = 1,
 	})
@@ -189,7 +189,7 @@ local function centerLogo(parent: Instance)
 	gui.Name = "Logo"
 	gui.Face = Enum.NormalId.Top
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 24
+	gui.PixelsPerStud = 24 / Layout.SCALE
 	gui.LightInfluence = 0.6
 	gui.Parent = plate
 	local function label(text: string, y: number, h: number, color: Color3, size: number)
@@ -243,26 +243,28 @@ local function buildPitch(root: Instance)
 	line(lines, Vector3.new(-hx, y, -hz), Vector3.new(-hx, y, hz), W)
 	line(lines, Vector3.new(hx, y, -hz), Vector3.new(hx, y, hz), W)
 	line(lines, Vector3.new(0, y, -hz), Vector3.new(0, y, hz), W)
-	arc(lines, Vector3.new(0, y, 0), 26, 0, math.pi * 2, W)
+	-- Markings grow with the pitch so it keeps real proportions
+	local S = Layout.SCALE
+	arc(lines, Vector3.new(0, y, 0), 26 * S, 0, math.pi * 2, W)
 	part(lines, { Name = "CenterSpot", Size = Vector3.new(0.05, 2, 2), CFrame = CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.pi / 2), Color = LINE, Shape = Enum.PartType.Cylinder })
 	for _, side in { -1, 1 } do
 		local gx = side * hx
 		-- Penalty box, goal box, spot and the arc
-		local boxDepth, boxHalf = 42, 50
-		local smallDepth, smallHalf = 15, 22
+		local boxDepth, boxHalf = 42 * S, 50 * S
+		local smallDepth, smallHalf = 15 * S, 22 * S
 		line(lines, Vector3.new(gx, y, -boxHalf), Vector3.new(gx - side * boxDepth, y, -boxHalf), W)
 		line(lines, Vector3.new(gx, y, boxHalf), Vector3.new(gx - side * boxDepth, y, boxHalf), W)
 		line(lines, Vector3.new(gx - side * boxDepth, y, -boxHalf), Vector3.new(gx - side * boxDepth, y, boxHalf), W)
 		line(lines, Vector3.new(gx, y, -smallHalf), Vector3.new(gx - side * smallDepth, y, -smallHalf), W)
 		line(lines, Vector3.new(gx, y, smallHalf), Vector3.new(gx - side * smallDepth, y, smallHalf), W)
 		line(lines, Vector3.new(gx - side * smallDepth, y, -smallHalf), Vector3.new(gx - side * smallDepth, y, smallHalf), W)
-		local spot = Vector3.new(gx - side * 30, y, 0)
+		local spot = Vector3.new(gx - side * 30 * S, y, 0)
 		part(lines, { Name = "PenaltySpot", Size = Vector3.new(0.05, 1.4, 1.4), CFrame = CFrame.new(spot) * CFrame.Angles(0, 0, math.pi / 2), Color = LINE, Shape = Enum.PartType.Cylinder })
 		local a = math.acos(12 / 22)
 		if side > 0 then
-			arc(lines, spot, 22, math.pi - a, math.pi + a, W)
+			arc(lines, spot, 22 * S, math.pi - a, math.pi + a, W)
 		else
-			arc(lines, spot, 22, -a, a, W)
+			arc(lines, spot, 22 * S, -a, a, W)
 		end
 		goal(pitch, gx)
 	end
@@ -461,7 +463,7 @@ local function buildSkyline(root: Instance)
 	local rng = Random.new(42)
 	for i = 1, 70 do
 		local a = (i / 70) * math.pi * 2 + rng:NextNumber(-0.03, 0.03)
-		local dist = rng:NextNumber(720, 1050)
+		local dist = rng:NextNumber(720, 1050) * (1 + (Layout.SCALE - 1) * 0.6)
 		local h = rng:NextNumber(60, 260)
 		local w = rng:NextNumber(40, 90)
 		local pos = Vector3.new(math.cos(a) * dist * 1.25, h / 2, math.sin(a) * dist)
@@ -474,7 +476,7 @@ local function buildSkyline(root: Instance)
 			end
 		end
 	end
-	part(city, { Name = "Ground", Size = Vector3.new(3000, 2, 3000), CFrame = CFrame.new(0, -2.2, 0), Color = Color3.fromRGB(44, 52, 46), Material = Enum.Material.Ground })
+	part(city, { Name = "Ground", Size = Vector3.new(3000, 2, 3000) * Vector3.new(Layout.SCALE, 1, Layout.SCALE), CFrame = CFrame.new(0, -2.2, 0), Color = Color3.fromRGB(44, 52, 46), Material = Enum.Material.Ground })
 end
 
 function Builder.Build(): Model

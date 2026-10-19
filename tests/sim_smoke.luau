@@ -35,7 +35,7 @@ world:Run(2.5)
 local player = world:AddPlayer("Tester", 1, true)
 local bot = world:AddPlayer("Bot", 2, false)
 local client = world:Context("client", false, player)
--- Keep the simulator fast: a token crowd (the real one is 6,700 fans)
+-- Keep the simulator fast: a token crowd (the real one is up to 10,000 fans)
 local ClientConfig = client.Require(RS:WaitForChild("Shared"):WaitForChild("Config"))
 ClientConfig.Crowd.DefaultDensity.Desktop = 0.01
 ClientConfig.Crowd.ConfettiRate = 0.5

@@ -93,7 +93,7 @@ Config.Arena = {
 Config.Crowd = {
 	-- Fans are drawn by each client. Density 1 = a fan in ~62% of seats.
 	DefaultDensity = { Desktop = 1, Mobile = 0.45 },
-	AnimateDistance = 650,
+	AnimateDistance = 950,
 	UpdateHz = 30,
 	ConfettiRate = 3, -- bursts per second around the stadium
 }

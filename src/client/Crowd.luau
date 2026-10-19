@@ -24,7 +24,7 @@ local HitFeedback = require(script.Parent.HitFeedback)
 
 local Crowd = {}
 
-local FAN_TARGET = 6500
+local FAN_TARGET = 10000
 local CONFETTI_POOL = { Desktop = 360, Mobile = 140 }
 local CONFETTI_COLORS = {
 	Color3.fromRGB(255, 70, 90),

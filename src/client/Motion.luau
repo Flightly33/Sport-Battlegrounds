@@ -7,7 +7,8 @@
 		- the curve gives dashes a snappy start and a soft stop instead of starting and ending dead
 		- pushes slide along walls in their way and never carry anyone out of the arena (the barrier in
 		  Shared/Stadium/Layout, minus a margin)
-		- pushes without a vertical speed leave gravity alone; ones with a vertical speed hold it
+		- pushes without a vertical speed drive the horizontal plane only (gravity untouched); ones with a
+	  vertical speed drive the full velocity
 	Only a character's owner moves it (MoveRunner's ctx:Push / Velocity / Forward / Dash / Teleport).
 	A script may Destroy() the LinearVelocity Push returns to end the push early (e.g. on reaching its
 	target). Tuning lives in Config.Motion and Config.Dash.
@@ -161,7 +162,11 @@ local function step(a: Active, dt: number)
 		a.Blocked = true
 	end
 	local out = Vector3.new(h.X, if a.Vertical then v.Y else 0, h.Z)
-	a.Constraint.VectorVelocity = out
+	if a.Vertical then
+		a.Constraint.VectorVelocity = out
+	else
+		a.Constraint.PlaneVelocity = Vector2.new(out.X, out.Z)
+	end
 	-- Also set the velocity directly: the constraint holds it against the Humanoid, and this makes sure
 	-- the push moves the body from its first frame even where the constraint takes hold late
 	local current = a.Root.AssemblyLinearVelocity
@@ -227,9 +232,17 @@ function Motion.Push(root: BasePart, spec: PushSpec): LinearVelocity
 	lv.Name = "SB_MoveVelocity"
 	lv.Attachment0 = Rig.MotionAttachment(root)
 	lv.RelativeTo = Enum.ActuatorRelativeTo.World
-	lv.ForceLimitMode = Enum.ForceLimitMode.PerAxis
-	local force = Config.Motion.Force
-	lv.MaxAxesForce = Vector3.new(force, if vertical then force else 0, force)
+	-- Pushes without a vertical speed drive only the horizontal plane, leaving gravity alone; ones
+	-- with one drive the full velocity. One big force limit, so the Humanoid can't hold it back.
+	lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
+	lv.MaxForce = Config.Motion.Force
+	if vertical then
+		lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	else
+		lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+		lv.PrimaryTangentAxis = Vector3.xAxis
+		lv.SecondaryTangentAxis = Vector3.zAxis
+	end
 	local a: Active = {
 		Root = root,
 		Constraint = lv,

@@ -75,7 +75,7 @@ Config.Dash = {
 
 -- Dashes, lunges, leaps and slides (Client/Motion).
 Config.Motion = {
-	Force = 1e6, -- LinearVelocity force per axis; much below ~1e4 a Humanoid shrugs it off
+	Force = 1e6, -- LinearVelocity force limit; much below ~1e4 a Humanoid shrugs it off
 	WallMargin = 2.2, -- studs kept between a moving character and the arena wall
 	BodyRadius = 1.3, -- wall checks reach this far past the next step
 }

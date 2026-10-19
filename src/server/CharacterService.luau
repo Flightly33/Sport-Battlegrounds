@@ -25,6 +25,7 @@ local CharacterService = {}
 local notify = Remotes.Event("Notify")
 
 local descriptions: { [Player]: HumanoidDescription } = {}
+local reported: { [Player]: boolean } = {}
 local fightersFolder: Folder
 
 local function getDescription(player: Player): HumanoidDescription
@@ -118,6 +119,11 @@ function CharacterService.Spawn(player: Player)
 	model:PivotTo(spawnCFrame())
 	model.Parent = fightersFolder
 	player.Character = model
+	if not reported[player] then
+		-- The stadium is sized in Roblox units (Stadium/Layout); this shows how big real avatars come out
+		reported[player] = true
+		print(string.format("[CharacterService] %s spawned %.1f studs tall (about %.2f m at Roblox's 0.28 m per stud)", player.Name, model:GetExtentsSize().Y, model:GetExtentsSize().Y * 0.28))
+	end
 
 	Props.Attach(model, classId)
 	CombatService.Register(model, player, classId)
@@ -172,6 +178,7 @@ function CharacterService.Init()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		descriptions[player] = nil
+		reported[player] = nil
 		local character = player.Character
 		if character then
 			character:Destroy()

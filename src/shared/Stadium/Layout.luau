@@ -12,10 +12,10 @@
 
 local Layout = {}
 
--- Real-world scale. A Roblox R15 character stands about 5.3 studs tall and an adult about 1.75 m,
--- so the stadium is built at 3 studs per metre: the measurements below are real ones (metres)
--- converted with it, so goals, seats, stands and fans are life-size next to a player.
-Layout.STUDS_PER_METER = 3
+-- Real-world scale, in Roblox's own units: 1 stud = 0.28 m (create.roblox.com/docs/physics/units), the
+-- scale avatars are designed at. The measurements below are real ones (metres) converted with it, so
+-- goals, seats, stands and fans are sized for the players standing next to them.
+Layout.STUDS_PER_METER = 1 / 0.28
 local M = Layout.STUDS_PER_METER
 
 -- Stretches the playing area (pitch, markings) for more room to fight, without growing goals, seats,

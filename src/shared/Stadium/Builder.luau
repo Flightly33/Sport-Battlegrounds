@@ -355,8 +355,9 @@ local function buildTier(root: Instance, tier: Layout.Tier, floorBase: number)
 			local gap = if isCorner then (if index % 4 == 0 then 2.5 else 0.15) else 3
 			part(seats, {
 				Name = "Seat",
-				Size = Vector3.new(math.max(1, length - gap), 2.4, 1.1),
-				CFrame = cf * CFrame.new(0, height + 1.2, -tier.Depth * 0.22),
+				-- 0.8 m seat backs, 0.37 m deep
+				Size = Vector3.new(math.max(1, length - gap), 0.8 * Layout.STUDS_PER_METER, 0.37 * Layout.STUDS_PER_METER),
+				CFrame = cf * CFrame.new(0, height + 0.4 * Layout.STUDS_PER_METER, -tier.Depth * 0.22),
 				-- A little darker than the boards, so the fans in front of them pop
 				Color = sideColor(side, blend, alt):Lerp(Color3.fromRGB(14, 14, 22), 0.32),
 				Material = Enum.Material.SmoothPlastic,

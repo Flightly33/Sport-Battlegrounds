@@ -14,7 +14,7 @@ Rojo project in Luau.
 1. Characters stood stiff in Studio. Cause: current R15 avatars are jointed with AnimationConstraints, not Motor6Ds, and `Rig.FromCharacter` only read Motor6Ds. `Rig` now reads both, and the Animator warns `[Animator] ... has no R15 joints` when it finds neither.
 2. Moves play full body clips. A clip's `Marks` (Plant, Contact, Release, Burst...) are the frames gameplay fires on, through `ctx:Until(track, mark)` (animation time, so they hold through hit-stop and slow-mo).
 3. Dashes, lunges, leaps and slides did nothing: they pushed on a `RootAttachment` that current rigs lack. `src/client/Motion.luau` now drives them on its own `SB_Motion` attachment (speed curves, wall sliding, arena clamp). Tuning is in `Config.Dash` and `Config.Motion`.
-4. The stadium is built at real-world size, `Layout.STUDS_PER_METER = 3` (an R15 character is about 1.75 m). `Layout.FIELD_SCALE` stretches only the pitch. `Layout.SCALE` is gone.
+4. The stadium is built at real-world size in Roblox's own units, `Layout.STUDS_PER_METER = 1 / 0.28` (Roblox: 1 stud = 0.28 m). The server logs each spawned character's height for calibration. `Layout.FIELD_SCALE` stretches only the pitch. `Layout.SCALE` is gone.
 If any of these still fail in Studio, ask the user for the Output window's errors and warnings.
 
 ## Layout

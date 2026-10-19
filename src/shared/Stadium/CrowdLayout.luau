@@ -3,7 +3,7 @@
 	builds the same crowd. Used by Client/Crowd.luau (and the offline preview).
 
 	Fans are colourful silhouettes - a block body and a ball head - sized like real people sitting in the
-	seats (Layout's 3 studs per metre), in bright colours with a bias towards each stand's team colour
+	seats (Layout.STUDS_PER_METER), in bright colours with a bias towards each stand's team colour
 	(blue Soccer end, orange Basketball side...).
 ]]
 

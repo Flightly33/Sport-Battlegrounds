@@ -10,6 +10,9 @@ checking layout, proportions and colour - not final looks.
 """
 
 import json
+
+# Stadium scale relative to the 3 studs per metre the preview spots were picked at
+K = (1 / 0.28) / 3
 import math
 import os
 import sys
@@ -162,9 +165,10 @@ def main():
     for p in crowd:
         add(p, col)
     # Life-size players for scale: on the pitch, by the west goal, on the north touchline
-    figure(col, -90, 20, 90)
-    figure(col, -150, 6, 90)
-    figure(col, 0, -96, 0)
+    # Spots were picked at 3 studs per metre; K moves them with the stadium's scale (Layout.STUDS_PER_METER)
+    figure(col, -90 * K, 20 * K, 90)
+    figure(col, -150 * K, 6 * K, 90)
+    figure(col, 0, -96 * K, 0)
     os.makedirs(out, exist_ok=True)
     scene.render.resolution_x = int(RES * 16 / 9)
     scene.render.resolution_y = RES
@@ -173,11 +177,12 @@ def main():
         "pitch": (rb(-60, 7, 60), rb(120, 30, -60), 20),
         "stand": (rb(40, 6, 60), rb(60, 50, -250), 24),
         # Roblox's default follow camera, behind the player on the pitch looking at the west goal
-        "player": (rb(-76, 7.5, 20), rb(-110, 3.5, 20), 24),
+        # (camera offsets from the figure stay fixed, so the figure frames the same at any scale)
+        "player": (rb(-90 * K + 14, 7.5, 20 * K), rb(-90 * K - 20, 3.5, 20 * K), 24),
         # Standing next to a goal
-        "goal": (rb(-128, 5.5, 22), rb(-155, 3.5, 2), 30),
+        "goal": (rb(-150 * K + 22, 5.5, 6 * K + 16), rb(-150 * K - 5, 3.5, 6 * K - 4), 30),
         # On the touchline, looking up at the stands
-        "touchline": (rb(0, 6, -82), rb(0, 22, -160), 22),
+        "touchline": (rb(0, 6, -96 * K + 14), rb(0, 22, -96 * K - 64), 22),
     }
     wanted = os.environ.get("PREVIEW_VIEWS", "aerial,pitch,stand").split(",")
     for name in wanted:

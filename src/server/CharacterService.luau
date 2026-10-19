@@ -18,6 +18,7 @@ local Remotes = require(Shared.Remotes)
 local Rig = require(Shared.Anim.Rig)
 local StadiumLayout = require(Shared.Stadium.Layout)
 
+local AwakenVFX = require(script.Parent.AwakenVFX)
 local CombatService = require(script.Parent.CombatService)
 
 local CharacterService = {}
@@ -129,6 +130,7 @@ function CharacterService.Spawn(player: Player)
 
 	Props.Attach(model, classId)
 	CombatService.Register(model, player, classId)
+	AwakenVFX.Attach(model)
 	humanoid.Died:Connect(function()
 		task.delay(Config.Player.RespawnTime, function()
 			if player.Parent and player.Character == model then

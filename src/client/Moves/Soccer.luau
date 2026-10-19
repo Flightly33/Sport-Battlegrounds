@@ -176,14 +176,10 @@ local function lightKick(ctx: Ctx)
 				FX.Sparks(position, P.Accent, 2, 6, 0.3)
 			end
 		end,
-		OnImpact = function(position: Vector3, victim: Model?)
+		OnImpact = function(position: Vector3, _victim: Model?)
 			FX.Flash(position, P.Core, 4, 0.15)
 			FX.Sparks(position, P.Primary, 12, 30, 0.5)
 			FX.Ring(CFrame.new(position), P.Primary, 0.5, 4, 0.2, 0.3, 12)
-			-- Hitting someone plays its own sound (lightKickHit); a miss just bounces
-			if not victim then
-				Sound.Play("Bounce", position)
-			end
 		end,
 	})
 	ctx:Until(kick, "End")
@@ -222,8 +218,6 @@ local function lightningExplosion(ctx: Ctx, position: Vector3, victim: Model?)
 			FX.Lightning(a, a + Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 8, P.Primary, { Thickness = 0.2, Duration = 0.12, Flickers = 1, Branches = 0 })
 		end
 	end)
-	Sound.Play("Explosion", position)
-	Sound.Play("Thunder", position, 1.2)
 	shake(position, 1.0, 140)
 	if ctx.IsOwner then
 		ctx:Report("Blast", Kit.Without(ctx:Query(position, 13), victim), position)
@@ -250,7 +244,6 @@ local function lightningShot(ctx: Ctx)
 	end
 	Kit.LimbTrail(ctx, "RightFoot", P.Primary, 1, 0.85, 0.22)
 	Kit.LimbTrail(ctx, "RightLowerLeg", P.Accent, 0.8, 0.85, 0.18)
-	Sound.Play("Zap", ctx.Root.Position, 0.8)
 	task.spawn(function()
 		for _ = 1, 4 do
 			task.wait(0.12)
@@ -421,7 +414,6 @@ local function bicycleKick(ctx: Ctx)
 	ctx:Face()
 	local kick = ctx:Play(C.BicycleKick)
 	local frame = Kit.Frame(ctx)
-	Sound.Play("Whoosh", ctx.Root.Position, 0.7)
 	if not ctx:Until(kick, "Jump") then
 		return
 	end
@@ -486,7 +478,6 @@ local function awaken(ctx: Ctx)
 		end
 		FX.Explosion(at, P, 9, { Lightning = true, Fire = false, Crater = true })
 		FX.Popup(at + Vector3.new(0, 6, 0), "STORM STRIKER", P.Accent, 2.4, 1.5)
-		Sound.Play("Thunder", at, 0.8)
 	end, { "SoccerAwakenIntro", "SoccerAwakenElectricity" })
 end
 

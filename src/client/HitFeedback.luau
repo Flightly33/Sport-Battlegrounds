@@ -26,6 +26,14 @@ type HitInfo = MoveRunner.HitInfo
 
 local HitFeedback = {}
 
+local CUSTOM_HIT_SOUND: { [string]: boolean } = {
+	Soccer_M1 = true,
+	Soccer_LightKick = true,
+	Soccer_LightningShot = true,
+	Soccer_DribbleDash = true,
+	Soccer_BicycleKick = true,
+}
+
 HitFeedback.Combo = Signal.new() -- (hits, damage) for the local attacker
 HitFeedback.Landed = Signal.new() -- (hit: HitInfo) every confirmed hit
 HitFeedback.Hype = Signal.new() -- (amount) the crowd reacts
@@ -95,7 +103,10 @@ local function onHit(hit: HitInfo)
 	end
 
 	FX.Impact(position, palette, if heavy then strength * 1.3 else strength)
-	Sound.Play(if heavy then "HeavyHit" else "Hit", position)
+	-- Moves with the owner's own impact sounds skip the generic thud
+	if not CUSTOM_HIT_SOUND[hit.Move] then
+		Sound.Play(if heavy then "HeavyHit" else "Hit", position)
+	end
 
 	-- Flinch + hit-stop
 	local stop = (def and def.HitStop) or Config.Combat.HitStop

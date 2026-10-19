@@ -212,7 +212,10 @@ function Kit.M1(ctx: Ctx, set: M1Set)
 	if limb then
 		Kit.LimbTrail(ctx, limb, ctx.Palette.Primary, if finisher then 0.8 else 0.6, (clip.Marks.Contact or 0.15) + 0.12)
 	end
-	Sound.Play(if finisher then "HeavyWhoosh" else "Whoosh", ctx.Root.Position, if finisher then 0.9 else 1)
+	-- A class with its own hit sounds doesn't get the generic swing whoosh on top
+	if not set.Sounds then
+		Sound.Play(if finisher then "HeavyWhoosh" else "Whoosh", ctx.Root.Position, if finisher then 0.9 else 1)
+	end
 	if not ctx:Until(track, "Contact") then
 		return
 	end

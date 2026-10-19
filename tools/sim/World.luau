@@ -44,6 +44,8 @@ local SERVICES = {
 	"TextService",
 	"ContextActionService",
 	"MaterialService",
+	"AssetService",
+	"ContentProvider",
 }
 
 local RIG = {
@@ -354,6 +356,42 @@ function World:InstallHooks()
 		GetInstanceRemovedSignal = function(_c, tag)
 			world.TagRemoved[tag] = world.TagRemoved[tag] or Signal.new("TagRemoved")
 			return world.TagRemoved[tag]
+		end,
+	}
+	-- Audio search: a few fake results per keyword (ids derived from the keyword) so the parsing,
+	-- publishing and client fallback paths all run. Odd ids "fail to load" on the client.
+	M.AssetService = {
+		SearchAudioAsync = function(_a, params)
+			local keyword = params.SearchKeyword
+			local base = 1000
+			for i = 1, #keyword do
+				base = (base * 31 + string.byte(keyword, i)) % 1000000
+			end
+			local items = {}
+			for i = 1, 3 do
+				table.insert(items, { Id = base * 10 + i, Title = keyword .. " #" .. i, IsEndorsed = i == 2 })
+			end
+			return {
+				GetCurrentPage = function()
+					return items
+				end,
+				IsFinished = true,
+			}
+		end,
+	}
+	M.ContentProvider = {
+		PreloadAsync = function(_c, list, callback)
+			for _, inst in list do
+				local id = inst.SoundId
+				local n = tonumber(string.match(id, "%d+")) or 0
+				local ok = n % 2 == 0
+				if ok then
+					Sim.States[inst].Props.IsLoaded = true
+				end
+				if callback then
+					callback(id, if ok then roblox.Enum.AssetFetchStatus.Success else roblox.Enum.AssetFetchStatus.Failure)
+				end
+			end
 		end,
 	}
 	M.StarterGui = {

@@ -3,7 +3,7 @@
 
 	The game is complete without any of these: every effect has a built-in version made from parts,
 	beams and particles. Upload a file, paste its id here (just the number, or "rbxassetid://..."),
-	and the matching effect switches to it automatically. See README -> "Blender asset pack".
+	and the matching effect switches to it automatically.
 ]]
 
 local AssetIds = {}
@@ -31,8 +31,9 @@ AssetIds.Textures = {
 	SpeedLines = "", -- speedlines.png (screen overlay)
 }
 
--- Sounds: built-in Roblox sounds are used (re-pitched) until you set these. Pick any public sound
--- from the Creator Store (Toolbox -> Audio) and paste its id.
+-- Sounds: an id here always wins. Empty slots are filled by the server's audio-library search
+-- (Server/AudioService, terms in Shared/AudioCatalog), then by re-pitched built-in sounds. Several
+-- ids separated by commas ("123,456") are picked at random per play.
 AssetIds.Sounds = {
 	Whoosh = "",
 	HeavyWhoosh = "",
@@ -53,7 +54,12 @@ AssetIds.Sounds = {
 	CrowdAmbience = "",
 	CrowdCheer = "",
 	KO = "",
+	Click = "",
+	Ping = "",
 }
+
+-- Background music ids, played shuffled. Leave empty to use the audio-library search.
+AssetIds.Music = {} :: { string }
 
 -- "123" / "rbxassetid://123" -> "rbxassetid://123"; "" -> nil
 function AssetIds.Resolve(id: string?): string?

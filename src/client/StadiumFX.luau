@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
 local Characters = require(Shared.Characters)
 local Remotes = require(Shared.Remotes)
 
@@ -257,17 +258,19 @@ function StadiumFX.Init()
 		local character = Characters.Get(killerClass)
 		if killer ~= "" then
 			StadiumFX.Flash("K.O.!  " .. killer, if character then character.Color else Color3.new(1, 1, 1), 2.5)
+			Sound.Play("CrowdCheer", nil, 1, 1)
 		end
 		task.delay(0.5, refreshTop)
 	end)
 	Remotes.Event("Announce").OnClientEvent:Connect(function(text: string, color: Color3)
 		StadiumFX.Flash(text, color, 3)
 		setScreens(text, "", color)
+		Sound.Play("CrowdCheer", nil, 1, 0.8)
 		task.delay(5, function()
 			setScreens("SPORTS BATTLEGROUNDS", "WHO RULES THE STADIUM?", nil)
 		end)
 	end)
-	Sound.Loop("CrowdAmbience", 0.35)
+	Sound.Loop("CrowdAmbience", Config.Audio.AmbienceVolume)
 end
 
 return StadiumFX

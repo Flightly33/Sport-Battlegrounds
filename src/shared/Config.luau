@@ -126,6 +126,17 @@ Config.GamepadKeys = {
 	CharacterMenu = Enum.KeyCode.DPadLeft,
 }
 
+-- Sound and music. Slots without an id in Shared/AssetIds are filled by searching Roblox's audio
+-- library on the server at startup (Shared/AudioCatalog has the search terms); anything that fails
+-- falls back to the built-in sounds.
+Config.Audio = {
+	Search = true,
+	MusicVolume = 0.22,
+	AmbienceVolume = 0.35,
+	SfxVolume = 1,
+	MusicToggleKey = Enum.KeyCode.N,
+}
+
 Config.Debug = {
 	ShowHitboxes = false, -- draw client hitboxes (Studio only)
 	LogRejectedHits = true, -- print why the server threw a hit away (Studio only)

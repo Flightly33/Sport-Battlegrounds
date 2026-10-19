@@ -17,6 +17,8 @@ local Awakenings = require(script.Awakenings)
 local Crowd = require(script.Crowd)
 local StadiumFX = require(script.StadiumFX)
 local UI = require(script.UI)
+local Sound = require(script.Sound)
+local Music = require(script.Music)
 
 -- Move scripts
 for _, name in { "Common", "Soccer", "Basketball", "Football", "Baseball" } do
@@ -30,6 +32,7 @@ for _, coreType in { Enum.CoreGuiType.Health, Enum.CoreGuiType.Backpack } do
 	end)
 end
 
+Sound.Init()
 CameraFX.Init()
 Animator.Init()
 MoveRunner.Init()
@@ -39,6 +42,7 @@ Awakenings.Init()
 UI.Init()
 StadiumFX.Init()
 Crowd.Init()
+Music.Init()
 
 -- Other players' moves: play them on this client
 Remotes.Event("MoveStarted").OnClientEvent:Connect(function(character: Model, moveId: string, token: number, startTime: number, aim: Vector3, variant: string)

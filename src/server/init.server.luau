@@ -15,12 +15,14 @@ local MoveService = require(script.MoveService)
 local CharacterService = require(script.CharacterService)
 local DummyService = require(script.DummyService)
 local MatchService = require(script.MatchService)
+local AudioService = require(script.AudioService)
 
 local started = os.clock()
 -- The stadium is baked into the place (Workspace.Stadium). If it was deleted, build a fresh one.
 if not workspace:FindFirstChild("Stadium") then
 	Builder.Build().Parent = workspace
 end
+AudioService.Init()
 CombatService.Init()
 MoveService.Init()
 MatchService.Init()

@@ -1,7 +1,8 @@
 --[[
-	Virtual time for the simulator. Scripts' os.clock, workspace:GetServerTimeNow, task.wait/delay and
-	the sim's own timers (remote latency, tweens, Debris...) all run on this clock, which only moves
-	when the world steps. A slow machine makes the run take longer, never changes what happens in it.
+	Virtual time for the simulator. Scripts' os.clock, workspace:GetServerTimeNow, task.wait/delay/defer
+	and the sim's own timers (remote latency, tweens, Debris...) all run on this clock, which only moves
+	when the world steps. Nothing waits on Lune's real-time scheduler, so a run is fully repeatable: a
+	slow machine makes it take longer, never changes what happens in it.
 ]]
 local task = require("@lune/task")
 
@@ -68,9 +69,28 @@ function Clock.Advance(dt: number)
 	Clock.Now = target
 end
 
--- Lets Lune run deferred threads (task.defer) before the caller continues.
+local deferred: { { Run: any, Args: any } } = {}
+
+-- task.defer: runs `fn` (a function or thread) at the next flush, after the current work.
+function Clock.Defer(fn: any, ...: any)
+	table.insert(deferred, { Run = fn, Args = table.pack(...) })
+end
+
+-- Runs deferred work until none is left (work deferred while flushing runs in the same flush,
+-- like Roblox's resumption cycle).
 function Clock.Flush()
-	task.wait(0)
+	local rounds = 0
+	while #deferred > 0 do
+		rounds += 1
+		if rounds > 1000 then
+			error("[sim] task.defer loop: work keeps deferring more work")
+		end
+		local batch = deferred
+		deferred = {}
+		for _, item in batch do
+			task.spawn(item.Run, table.unpack(item.Args, 1, item.Args.n))
+		end
+	end
 end
 
 return Clock

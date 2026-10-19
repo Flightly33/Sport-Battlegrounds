@@ -239,7 +239,7 @@ function World:InstallHooks()
 			local old = st.Props.Health or max
 			local new = math.clamp(value, 0, max)
 			if new ~= old then
-				task.defer(function()
+				Clock.Defer(function()
 					Sim.Fire(h, "HealthChanged", new)
 				end)
 			end
@@ -247,7 +247,7 @@ function World:InstallHooks()
 				if World.TraceDeaths then
 					print("[sim] humanoid died:", h:GetFullName(), debug.traceback("", 2))
 				end
-				task.defer(function()
+				Clock.Defer(function()
 					Sim.Fire(h, "Died")
 				end)
 			end
@@ -269,7 +269,7 @@ function World:InstallHooks()
 	Sim.Setters.Player = {
 		Character = function(player, character)
 			if character then
-				task.defer(function()
+				Clock.Defer(function()
 					Sim.Fire(player, "CharacterAdded", character)
 				end)
 			end
@@ -348,7 +348,7 @@ function World:InstallHooks()
 		end,
 		GetTagged = function(_c, tag)
 			local out = {}
-			for inst in world.Tags[tag] or {} do
+			for _, inst in Sim.Ordered(world.Tags[tag] or {}) do
 				table.insert(out, inst)
 			end
 			return out
@@ -479,6 +479,7 @@ end
 --------------------------------------------------------------------------------
 function World:BuildFromSourcemap()
 	local map = serde.decode("json", fs.readFile(self.Root .. "sourcemap.json"))
+	self.Sources = self.Sources or {}
 	local function build(node, parent)
 		if node.name == "Stadium" and parent == self.Services.Workspace then
 			return -- the baked map; the server builds it if missing
@@ -495,6 +496,9 @@ function World:BuildFromSourcemap()
 		for _, path in node.filePaths or {} do
 			if string.match(path, "%.luau$") or string.match(path, "%.lua$") then
 				Sim.States[inst].Extra.File = path
+				-- Read now: fs.readFile is async in Lune, and a script yielding to Lune's I/O loop in
+				-- the middle of a require would make runs depend on real timing
+				self.Sources[path] = fs.readFile(self.Root .. path)
 			end
 		end
 		for _, child in node.children or {} do
@@ -601,7 +605,7 @@ function World:Spherecast(origin, radius, direction, params)
 			local t = math.clamp((center - origin):Dot(dir), 0, length)
 			local closest = origin + dir * t
 			local reach = radius + math.max(part.Size.X, part.Size.Y, part.Size.Z) * 0.5
-			if (center - closest).Magnitude <= reach and t < bestT then
+			if (center - closest).Magnitude <= reach and (t < bestT or (t == bestT and best and Sim.Seq(part) < Sim.Seq(best))) then
 				best, bestT = part, t
 			end
 		end
@@ -623,7 +627,7 @@ function World:QueryBox(cf, size, params)
 			end
 		end
 	end
-	return out
+	return Sim.SortList(out)
 end
 
 function World:QueryRadius(position, radius, params)
@@ -636,7 +640,7 @@ function World:QueryRadius(position, radius, params)
 			end
 		end
 	end
-	return out
+	return Sim.SortList(out)
 end
 
 --------------------------------------------------------------------------------
@@ -735,9 +739,12 @@ function World:Context(name: string, isServer: boolean, localPlayer: any?)
 		end,
 		defer = function(f, ...)
 			if type(f) == "thread" then
-				return task.defer(f, ...)
+				Clock.Defer(f, ...)
+				return f
 			end
-			return task.defer(wrap(f), ...)
+			local thread = coroutine.create(wrap(f))
+			Clock.Defer(thread, ...)
+			return thread
 		end,
 		delay = function(t, f, ...)
 			if type(f) == "thread" then
@@ -798,8 +805,13 @@ function World:Context(name: string, isServer: boolean, localPlayer: any?)
 	-- Deterministic Random
 	local RandomShim = {}
 	RandomShim.__index = RandomShim
+	local unseeded = 0
 	function RandomShim.new(seed)
-		local s = math.floor(seed or (os.clock() * 1e6)) % 2147483647
+		-- Unseeded generators get 1, 2, 3... so runs repeat
+		if seed == nil then
+			unseeded += 1
+		end
+		local s = math.floor(seed or unseeded * 7919) % 2147483647
 		if s <= 0 then
 			s += 2147483646
 		end
@@ -842,11 +854,13 @@ function World:Context(name: string, isServer: boolean, localPlayer: any?)
 			return cached.value
 		end
 		if ctx.Loading[target] then
-			error("Requested module was required recursively: " .. target:GetFullName(), 2)
+			local loader = ctx.Loading[target]
+			local where = if type(loader) == "thread" then debug.traceback(loader) else tostring(loader)
+			error("Requested module was required recursively: " .. target:GetFullName() .. "\n(the first load is suspended at: " .. where .. ")", 2)
 		end
-		ctx.Loading[target] = true
+		ctx.Loading[target] = coroutine.running()
 		local file = sourceOf(target)
-		local fn = luau.load(fs.readFile(world.Root .. file), { debugName = file, environment = environmentFor(target) })
+		local fn = luau.load(world.Sources[file], { debugName = file, environment = environmentFor(target) })
 		local value = fn()
 		ctx.Loading[target] = nil
 		ctx.Cache[target] = { value = value }
@@ -855,7 +869,7 @@ function World:Context(name: string, isServer: boolean, localPlayer: any?)
 	-- Runs a Script / LocalScript in this context.
 	ctx.Run = function(scriptInstance)
 		local file = sourceOf(scriptInstance)
-		local fn = luau.load(fs.readFile(world.Root .. file), { debugName = file, environment = environmentFor(scriptInstance) })
+		local fn = luau.load(world.Sources[file], { debugName = file, environment = environmentFor(scriptInstance) })
 		task.spawn(function()
 			Signal.Guarded(fn)
 		end)
@@ -904,7 +918,7 @@ end
 
 function World:Physics(dt: number)
 	local driven: { [any]: any } = {}
-	for lv in self.Velocities do
+	for _, lv in Sim.Ordered(self.Velocities) do
 		local st = Sim.States[lv]
 		if not st.Destroyed and lv.Enabled ~= false then
 			local a = lv.Attachment0
@@ -949,7 +963,7 @@ function World:Physics(dt: number)
 		end
 	end
 	-- Welded dummies follow their grabber
-	for weld in self.Welds do
+	for _, weld in Sim.Ordered(self.Welds) do
 		local p0, p1 = weld.Part0, weld.Part1
 		if p0 and p1 and weld.Name == "SB_Grab" and not Sim.States[weld].Destroyed then
 			local model = assemblyOf(p1)
@@ -983,6 +997,24 @@ function World:Run(seconds: number)
 		Clock.Flush()
 		self:Step(World.FrameTime)
 		Clock.Flush()
+		if World.Digest then
+			self.Frame = (self.Frame or 0) + 1
+			local parts = { string.format("[digest] %d t=%.4f", self.Frame, Clock.Now) }
+			for _, folderName in { "Fighters", "Dummies" } do
+				local folder = self.Services.Workspace:FindFirstChild(folderName)
+				if folder then
+					for _, model in folder:GetChildren() do
+						local root = model:FindFirstChild("HumanoidRootPart")
+						local h = model:FindFirstChildOfClass("Humanoid")
+						if root then
+							local p = root.Position
+							table.insert(parts, string.format("%s(%.3f,%.3f,%.3f|%s)", model.Name, p.X, p.Y, p.Z, tostring(h and h.Health)))
+						end
+					end
+				end
+			end
+			print(table.concat(parts, " "))
+		end
 	end
 end
 

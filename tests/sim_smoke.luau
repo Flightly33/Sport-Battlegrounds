@@ -21,6 +21,7 @@ local quick = process.args[1] == "quick"
 local only = if process.args[1] and process.args[1] ~= "quick" then string.split(process.args[1], ",") else nil
 
 World.TraceDeaths = true
+World.Digest = process.env.SIM_DIGEST ~= nil
 local world = World.new(root)
 local game = world.Game
 local RS = world.Services.ReplicatedStorage

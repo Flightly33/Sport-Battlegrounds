@@ -134,8 +134,12 @@ local EXTRA_DEFAULTS: { [string]: { [string]: any } } = {
 --------------------------------------------------------------------------------
 -- Construction
 --------------------------------------------------------------------------------
+local created = 0
+
 local function newState(className: string): State
+	created += 1
 	return {
+		Seq = created, -- creation order: sets keyed by instance are iterated in this order
 		ClassName = className,
 		Name = className,
 		Parent = nil,
@@ -158,6 +162,27 @@ function Sim.Raw(className: string): any
 end
 
 Sim.OnCreated = function(_inst: any) end
+
+-- Tables keyed by instance iterate in memory-address order, which changes from run to run.
+-- These give the keys (or a list) in creation order instead.
+local function bySeq(a: any, b: any): boolean
+	return states[a].Seq < states[b].Seq
+end
+function Sim.Ordered(set: { [any]: any }): { any }
+	local out = {}
+	for inst in set do
+		table.insert(out, inst)
+	end
+	table.sort(out, bySeq)
+	return out
+end
+function Sim.SortList(list: { any }): { any }
+	table.sort(list, bySeq)
+	return list
+end
+function Sim.Seq(inst: any): number
+	return states[inst].Seq
+end
 
 function Sim.New(className: string, parent: any?): any
 	local c = class(className)

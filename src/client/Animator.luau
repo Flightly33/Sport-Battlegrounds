@@ -7,8 +7,11 @@
 		2. status: block, hit-stun stagger (from the attributes CombatService replicates)
 		3. action tracks started by moves (Animator.Play)
 		4. knockdown / tumbling
-		5. additive: hit flinches, leaning into turns
+		5. additive: hit flinches, leaning into turns and into speed changes
 	Hit-stop freezes the action clock for a few frames, which is most of what makes hits feel heavy.
+	The final pose is eased towards per joint (a few frames of lag) so layer switches, fades with no
+	fade time and network corrections never pop; hit-stop and big jumps snap instead. Standing still
+	long enough plays one of the style's idle fidgets (Clips.<Style>.Fidgets).
 
 	Joint transforms aren't replicated, so every client animates everyone; moves start on all clients
 	at (almost) the same time through MoveStarted.
@@ -61,6 +64,12 @@ type Entry = {
 	Spin: number,
 	LastYaw: number,
 	Lean: number,
+	Accel: Vector3, -- smoothed local acceleration (studs/s^2)
+	LastVelocity: Vector3,
+	Smoothed: { [string]: CFrame },
+	IdleTime: number,
+	NextFidget: number,
+	Fidget: Track?,
 	Frame: number,
 	Dead: boolean,
 }
@@ -68,6 +77,13 @@ type Entry = {
 local entries: { [Model]: Entry } = {}
 local CULL_DISTANCE = 320
 local LOW_RATE_DISTANCE = 140
+-- Output easing (1/s); legs are faster so planted feet don't slide
+local SMOOTH_RATE = 28
+local SMOOTH_RATE_LEGS = 42
+local LEG_JOINTS = { RightHip = true, LeftHip = true, RightKnee = true, LeftKnee = true, RightAnkle = true, LeftAnkle = true }
+-- Above this angle (radians) a joint snaps instead of easing (respawns, knockdown spins)
+local SNAP_ANGLE = 2.2
+local FIDGET_DELAY = NumberRange.new(6, 10)
 
 local function serverNow(): number
 	return workspace:GetServerTimeNow()
@@ -127,6 +143,12 @@ local function register(model: Instance)
 		Spin = 0,
 		LastYaw = 0,
 		Lean = 0,
+		Accel = Vector3.zero,
+		LastVelocity = Vector3.zero,
+		Smoothed = {},
+		IdleTime = 0,
+		NextFidget = FIDGET_DELAY.Min + math.random() * (FIDGET_DELAY.Max - FIDGET_DELAY.Min),
+		Fidget = nil,
 		Frame = math.random(0, 3),
 		Dead = false,
 	}
@@ -149,6 +171,10 @@ local function register(model: Instance)
 	model:GetAttributeChangedSignal("Class"):Connect(function()
 		entry.Style, entry.StyleName = styleFor(model:GetAttribute("Class") :: string?)
 		entry.State.Custom = {}
+		if entry.Fidget then
+			entry.Fidget:Stop(0.1)
+			entry.Fidget = nil
+		end
 	end)
 	humanoid.Died:Connect(function()
 		entry.Dead = true
@@ -172,6 +198,11 @@ function Animator.Play(model: Model, clip: Clip, options: PlayOptions?): Track?
 	if not entry then
 		return track
 	end
+	if entry.Fidget then
+		entry.Fidget:Stop(0.08)
+		entry.Fidget = nil
+	end
+	entry.IdleTime = 0
 	table.insert(entry.Tracks, track)
 	return track
 end
@@ -230,6 +261,54 @@ local function blendClip(rig: Rig.RigInfo, out: Resolved, clip: Clip, t: number,
 	Pose.Blend(out, resolved, clip.Channels, weight)
 end
 
+local function nextFidgetDelay(): number
+	return FIDGET_DELAY.Min + math.random() * (FIDGET_DELAY.Max - FIDGET_DELAY.Min)
+end
+
+-- Plays an idle fidget after standing still for a while; moving or acting cancels it.
+local function updateFidget(entry: Entry, step: number, calm: boolean)
+	local fidget = entry.Fidget
+	if fidget then
+		if fidget.Stopped then
+			entry.Fidget = nil
+		elseif not calm then
+			fidget:Stop(0.18)
+			entry.Fidget = nil
+		end
+		return
+	end
+	local busy = false
+	for _, track in entry.Tracks do
+		if not track.Stopped then
+			busy = true
+			break
+		end
+	end
+	if not calm or busy then
+		entry.IdleTime = 0
+		return
+	end
+	entry.IdleTime += step
+	if entry.IdleTime < entry.NextFidget then
+		return
+	end
+	entry.IdleTime = 0
+	entry.NextFidget = nextFidgetDelay()
+	local byClass = (Clips :: any)[entry.StyleName]
+	local list = byClass and byClass.Fidgets :: { Clip }?
+	if list and #list > 0 then
+		local clip = list[math.random(1, #list)]
+		local track = newTrack(clip, 1, clip.FadeIn, false)
+		table.insert(entry.Tracks, track)
+		entry.Fidget = track
+	end
+end
+
+local function angleBetween(a: CFrame, b: CFrame): number
+	local _, angle = (a:Inverse() * b):ToAxisAngle()
+	return math.abs(angle)
+end
+
 local function blockClip(entry: Entry): Clip
 	local byClass = (Clips :: any)[entry.StyleName]
 	if byClass and byClass.Block then
@@ -283,7 +362,9 @@ local function update(entry: Entry, dt: number, now: number, camPos: Vector3)
 	local stunW = statusLayer(entry, "Stun", stunned, step, 0.06)
 	blendClip(rig, out, Clips.Common.Stagger, state.Time, stunW)
 
-	-- 3. Action tracks
+	-- 3. Action tracks (and idle fidgets)
+	local calm = grounded and not stunned and not knocked and not blocking and state.Move < 0.08
+	updateFidget(entry, step, calm)
 	local i = 1
 	while i <= #entry.Tracks do
 		local track = entry.Tracks[i]
@@ -344,14 +425,44 @@ local function update(entry: Entry, dt: number, now: number, camPos: Vector3)
 	local targetLean = math.clamp(dyaw / math.max(step, 1e-3) * 0.02, -0.25, 0.25) * state.Move
 	entry.Lean += (targetLean - entry.Lean) * math.min(1, step * 8)
 	additive.Root = (additive.Root or CFrame.identity) * CFrame.Angles(0, 0, -entry.Lean)
+
+	-- Speeding up tips the body forward, braking rocks it back; the head stays level
+	local planar = Vector3.new(velocity.X, 0, velocity.Z)
+	local rawAccel = (planar - entry.LastVelocity) / math.max(step, 1 / 240)
+	entry.LastVelocity = planar
+	local localAccel = if grounded and not knocked then cf:VectorToObjectSpace(rawAccel) else Vector3.zero
+	entry.Accel += (localAccel - entry.Accel) * math.min(1, step * 10)
+	if not frozen then
+		-- Local -Z is forward; Root +X leans back
+		local pitch = math.clamp(entry.Accel.Z * 0.0045, -0.16, 0.12)
+		local roll = math.clamp(entry.Accel.X * 0.003, -0.1, 0.1)
+		if math.abs(pitch) + math.abs(roll) > 1e-3 then
+			additive.Root = additive.Root * CFrame.Angles(pitch, 0, roll)
+			additive.Neck = (additive.Neck or CFrame.identity) * CFrame.Angles(-pitch * 0.6, 0, -roll * 0.5)
+		end
+		-- The head leads turns a little
+		local look = math.clamp(dyaw / math.max(step, 1e-3) * 0.012, -0.2, 0.2) * state.Move
+		if math.abs(look) > 1e-3 then
+			additive.Neck = (additive.Neck or CFrame.identity) * CFrame.Angles(0, look, 0)
+		end
+	end
 	Pose.Add(out, additive)
 
-	-- Apply
+	-- Apply, easing towards the target pose
+	local smoothed = entry.Smoothed
+	local alpha = if frozen then 1 else 1 - math.exp(-SMOOTH_RATE * step)
+	local alphaLegs = if frozen then 1 else 1 - math.exp(-SMOOTH_RATE_LEGS * step)
 	for name, l in out do
 		local joint = rig.Joints[name]
 		local motor = joint and joint.Motor
 		if motor and joint then
-			motor.Transform = Rig.ToTransform(joint, l)
+			local previous = smoothed[name]
+			local value = l
+			if previous and alpha < 1 and angleBetween(previous, l) < SNAP_ANGLE then
+				value = previous:Lerp(l, if LEG_JOINTS[name] then alphaLegs else alpha)
+			end
+			smoothed[name] = value
+			motor.Transform = Rig.ToTransform(joint, value)
 		end
 	end
 end

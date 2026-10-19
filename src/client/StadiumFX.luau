@@ -4,7 +4,7 @@
 		Jumbotrons                   title card, announcements, the kill feed and the top KOs
 		Floodlights                  soft light shafts from the masts and the roof onto the pitch, and the
 		                             light grid that lights the pitch for the night match
-		Crowd ambience               (only if a sound id is set in Shared/AssetIds)
+		Crowd ambience               a quiet loop that swells as you near the arena wall
 ]]
 
 local Players = game:GetService("Players")
@@ -309,7 +309,17 @@ function StadiumFX.Init()
 			setScreens("SPORTS BATTLEGROUNDS", "WHO RULES THE STADIUM?", nil)
 		end)
 	end)
-	Sound.Loop("CrowdAmbience", Config.Audio.AmbienceVolume)
+	local ambience = Sound.Loop("CrowdAmbience", Config.Audio.AmbienceVolume)
+	RunService.Heartbeat:Connect(function(dt)
+		local root = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if not root or not root:IsA("BasePart") then
+			return
+		end
+		local near = 1 - math.clamp(Layout.InsideDistance(root.Position) / Config.Audio.AmbienceWallRange, 0, 1)
+		near = near * near * (3 - 2 * near)
+		local target = Config.Audio.AmbienceVolume + (Config.Audio.AmbienceWallVolume - Config.Audio.AmbienceVolume) * near
+		ambience.Volume += (target - ambience.Volume) * math.min(1, dt * 2)
+	end)
 end
 
 return StadiumFX

@@ -232,6 +232,7 @@ local EVENTS: { [string]: { string } } = {
 	Humanoid = { "Died", "HealthChanged", "StateChanged", "Running", "Jumping" },
 	Player = { "CharacterAdded", "CharacterRemoving", "CharacterAppearanceLoaded" },
 	Players = { "PlayerAdded", "PlayerRemoving" },
+	MarketplaceService = { "PromptGamePassPurchaseFinished" },
 	RemoteEvent = { "OnServerEvent", "OnClientEvent" },
 	UnreliableRemoteEvent = { "OnServerEvent", "OnClientEvent" },
 	Sound = { "Ended", "Played" },

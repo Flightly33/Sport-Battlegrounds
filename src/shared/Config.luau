@@ -27,6 +27,10 @@ Config.Combat = {
 	-- M1: a 4-hit chain. Each hit stuns long enough to land the next one; the 4th knocks back.
 	ComboResetTime = 1.1, -- M1 chain resets if you wait longer than this between clicks
 	ComboEndCooldown = 1.4, -- after the 4th hit
+	-- Moves fly where the camera looks, not where the character happens to be facing. Roblox's default
+	-- camera leaves the character facing its last step (or the camera, after walking backwards), so
+	-- without this a shot can leave in the opposite direction to what's on screen.
+	AimWithCamera = true,
 	-- How far (studs) a hit may be from the attacker on the server before it's rejected.
 	-- Generous because the server sees everyone ~ping/2 in the past.
 	RangeTolerance = 14,
@@ -153,14 +157,30 @@ Config.GamepadKeys = {
 Config.Audio = {
 	Search = true,
 	MusicVolume = 0.22,
-	AmbienceVolume = 0.35,
+	AmbienceVolume = 0.14, -- the crowd bed mid-pitch: quiet enough never to get annoying
+	AmbienceWallVolume = 0.3, -- ...swelling to this against the wall, where the stands are closest
+	AmbienceWallRange = 90, -- studs from the wall over which it swells
 	SfxVolume = 1,
 	MusicToggleKey = Enum.KeyCode.N,
+}
+
+Config.Sky = {
+	-- The helicopter and the blimps with glowing billboards (Client/SkyFX).
+	Enabled = true,
+	Blimps = 2,
+	MobileBlimps = 1,
+}
+
+Config.Shop = {
+	-- While the Robux gamepasses aren't set up, every player gets every skin (see Shared/Skins). Turn this
+	-- off once the GamePassIds there are filled in, and ownership comes from the passes.
+	GrantAllSkins = true,
 }
 
 Config.Debug = {
 	ShowHitboxes = false, -- draw client hitboxes (Studio only)
 	LogRejectedHits = true, -- print why the server threw a hit away (Studio only)
+	LogInput = true, -- print each move press and why it didn't start, or that Roblox's UI took it (Studio only)
 }
 
 return Config

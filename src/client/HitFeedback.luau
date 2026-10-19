@@ -95,7 +95,8 @@ local function onHit(hit: HitInfo)
 	end
 
 	FX.Impact(position, palette, if heavy then strength * 1.3 else strength)
-	Sound.Play(if heavy then "HeavyHit" else "Hit", position)
+	local moveScript = MoveRunner.Script(hit.Move)
+	Sound.Play((moveScript and moveScript.HitSound) or (if heavy then "HeavyHit" else "Hit"), position)
 
 	-- Flinch + hit-stop
 	local stop = (def and def.HitStop) or Config.Combat.HitStop
@@ -132,9 +133,8 @@ local function onHit(hit: HitInfo)
 	end
 
 	-- The move's signature impact
-	local s = MoveRunner.Script(hit.Move)
-	if s and s.OnHit then
-		task.spawn(s.OnHit, hit, palette)
+	if moveScript and moveScript.OnHit then
+		task.spawn(moveScript.OnHit, hit, palette)
 	end
 
 	if hit.Killed then

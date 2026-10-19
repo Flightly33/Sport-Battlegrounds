@@ -39,9 +39,9 @@ local FIRE: Palette = {
 	Light = Color3.fromRGB(255, 150, 80),
 }
 
-local function ballWithTrail(scale: number, glow: Color3?, trailColor: Color3, trailCore: Color3): () -> Instance
+local function ballWithTrail(scale: number, glow: Color3?, trailColor: Color3, trailCore: Color3, skin: string?): () -> Instance
 	return function(): Instance
-		local build: () -> Instance = if glow then Kit.GlowBall("Soccer", glow, 2.6 * scale, scale) else Kit.Ball("Soccer", scale)
+		local build: () -> Instance = if glow then Kit.GlowBall("Soccer", glow, 2.6 * scale, scale, skin) else Kit.Ball("Soccer", scale, skin)
 		local model = build() :: Model
 		local core = model.PrimaryPart
 		if core then
@@ -100,6 +100,7 @@ local M1: Kit.M1Set = {
 		{ Clip = C.KickA, Mirror = C.KickAL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
 		{ Clip = C.KickFinisher, Mirror = C.KickFinisherL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
 	},
+	Sounds = { "Soccer_M1_1", "Soccer_M1_2", "Soccer_M1_3", "Soccer_M1_4" },
 	Uppercut = { Clip = C.UpKick, Mirror = C.UpKickL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
 	Downslam = { Clip = C.AxeKick, Mirror = C.AxeKickL, Limb = "RightFoot", MirrorLimb = "LeftFoot" },
 	Swing = function(ctx: Ctx, step: number, mirrored: boolean, position: Vector3)
@@ -157,7 +158,7 @@ local function lightKick(ctx: Ctx)
 	Kit.Contact(ctx, origin, 1)
 	FX.Ring(CFrame.lookAt(origin, origin + dir) * CFrame.Angles(math.pi / 2, 0, 0), P.Primary, 0.5, 3, 0.18, 0.3, 12)
 	FX.Sparks(origin, P.Accent, 6, 20, 0.35)
-	Sound.Play("Kick", origin)
+	Sound.Play("Soccer_LightKick", origin)
 	ctx:HideProp(true)
 	ctx:Projectile({
 		Hit = "Ball",
@@ -166,18 +167,20 @@ local function lightKick(ctx: Ctx)
 		Speed = 140,
 		Range = 75,
 		Radius = 1.6,
-		Visual = ballWithTrail(1, nil, P.Primary, P.Core),
+		Visual = ballWithTrail(1, nil, P.Primary, P.Core, Kit.BallSkin(ctx)),
 		Spin = Vector3.new(-25, 0, 0),
 		OnStep = function(position: Vector3)
 			if math.random() < 0.3 then
 				FX.Sparks(position, P.Accent, 2, 6, 0.3)
 			end
 		end,
-		OnImpact = function(position: Vector3)
+		OnImpact = function(position: Vector3, victim: Model?)
 			FX.Flash(position, P.Core, 4, 0.15)
 			FX.Sparks(position, P.Primary, 12, 30, 0.5)
 			FX.Ring(CFrame.new(position), P.Primary, 0.5, 4, 0.2, 0.3, 12)
-			Sound.Play("Bounce", position)
+			if not victim then
+				Sound.Play("Bounce", position) -- landing on someone has its own sound (HitSound)
+			end
 		end,
 	})
 	ctx:Until(kick, "End")
@@ -270,7 +273,7 @@ local function lightningShot(ctx: Ctx)
 		FX.Lightning(origin, origin + d * 7, P.Primary, { Thickness = 0.3, Duration = 0.18, Flickers = 1, Core = P.Core })
 	end
 	Sound.Play("Kick", origin, 0.7)
-	Sound.Play("Thunder", origin, 1.5, 0.6)
+	Sound.Play("Soccer_LightningShot", origin)
 	if ctx.IsOwner then
 		CameraFX.Shake(0.4)
 		CameraFX.FOVPunch(9, 0.12)
@@ -284,7 +287,7 @@ local function lightningShot(ctx: Ctx)
 		Speed = 110,
 		Range = 125,
 		Radius = 2.3,
-		Visual = ballWithTrail(1.3, P.Primary, Color3.new(1, 1, 1), P.Core),
+		Visual = ballWithTrail(1.3, P.Primary, Color3.new(1, 1, 1), P.Core, Kit.BallSkin(ctx)),
 		Spin = Vector3.new(-30, 0, 0),
 		OnStep = function(position: Vector3, direction: Vector3, dt: number)
 			wind += dt
@@ -314,8 +317,8 @@ local function flickEffects(ctx: Ctx, at: Vector3)
 	FX.Lightning(ground, ground + Vector3.new(0, 16, 0), P.Primary, { Thickness = 0.6, Duration = 0.3, Flickers = 2, Branches = 2, Core = P.Core })
 	FX.Ring(CFrame.new(ground + Vector3.new(0, 0.2, 0)), P.Primary, 1, 7, 0.3, 0.6)
 	FX.Emit(at, { Color = P.Accent, Count = 18, Speed = NumberRange.new(30, 55), Spread = Vector2.new(25, 25), Size = FX.Seq(0.5, 0), Lifetime = NumberRange.new(0.25, 0.5) })
-	Sound.Play("Kick", at, 1.2)
-	Sound.Play("Zap", at, 0.9)
+	Sound.Play("Soccer_DashKick", at)
+	Sound.Play("Soccer_DashLightning", at)
 end
 
 local function dribbleDash(ctx: Ctx)
@@ -334,8 +337,7 @@ local function dribbleDash(ctx: Ctx)
 	if ctx.IsOwner then
 		CameraFX.SpeedLines(0.45, P.Accent)
 	end
-	Sound.Play("Whoosh", ctx.Root.Position, 0.8)
-	Sound.Play("Zap", ctx.Root.Position, 1.1)
+	Sound.Play("Soccer_DashRun", ctx.Root.Position)
 	local frame = Kit.Frame(ctx)
 	local velocity = ctx:Velocity(frame.LookVector * 62, 0.42)
 	local last = ctx.Root.Position
@@ -401,7 +403,7 @@ local function bicycleKick(ctx: Ctx)
 	ctx:Face()
 	local kick = ctx:Play(C.BicycleKick)
 	local frame = Kit.Frame(ctx)
-	Sound.Play("Whoosh", ctx.Root.Position, 0.7)
+	Sound.Play("Soccer_BicycleLeap", ctx.Root.Position)
 	if not ctx:Until(kick, "Jump") then
 		return
 	end
@@ -430,16 +432,16 @@ local function bicycleKick(ctx: Ctx)
 		Range = (strike - from).Magnitude + 2,
 		Radius = 1,
 		IgnoreWalls = true,
-		Visual = ballWithTrail(1.1, P.Primary, Color3.new(1, 1, 1), P.Core),
+		Visual = ballWithTrail(1.1, P.Primary, Color3.new(1, 1, 1), P.Core, Kit.BallSkin(ctx)),
 	})
 	FX.Lightning(from, strike, P.Primary, { Thickness = 0.9, Jag = 2.5, Duration = 0.35, Flickers = 3, Branches = 2, Core = P.Core })
+	Sound.Play("Soccer_BicycleLightning", strike)
 	task.wait(0.06)
 	FX.Thunderbolt(strike, P, 3)
 	FX.Crater(strike, 9)
 	FX.Debris(strike, 12, 40)
 	FX.Shell(strike, P.Primary, 2, 10, 0.35, Enum.Material.Neon)
-	Sound.Play("Thunder", strike)
-	Sound.Play("Explosion", strike, 1.3)
+	Sound.Play("Soccer_BicycleImpact", strike)
 	shake(strike, 0.7, 90)
 	ctx:Sphere("Kick", strike + Vector3.new(0, 3, 0), 10)
 	ctx:Sphere("Kick", ctx.Root.Position + frame.LookVector * 4, 7)
@@ -466,7 +468,7 @@ local function awaken(ctx: Ctx)
 		FX.Explosion(at, P, 9, { Lightning = true, Fire = false, Crater = true })
 		FX.Popup(at + Vector3.new(0, 6, 0), "STORM STRIKER", P.Accent, 2.4, 1.5)
 		Sound.Play("Thunder", at, 0.8)
-	end)
+	end, { Intro = "Soccer_AwakenIntro", Electricity = "Soccer_AwakenElectricity" })
 end
 
 --------------------------------------------------------------------------------
@@ -641,7 +643,7 @@ local function storm(ctx: Ctx)
 		Range = 70,
 		Radius = 1,
 		IgnoreWalls = true,
-		Visual = ballWithTrail(1.2, P.Primary, P.Accent, P.Core),
+		Visual = ballWithTrail(1.2, P.Primary, P.Accent, P.Core, Kit.BallSkin(ctx)),
 	})
 	FX.Flash(origin, P.Core, 6, 0.15)
 	FX.Shockwave(CFrame.new(origin), P.Primary, 8, 0.4, P.Core)
@@ -682,7 +684,7 @@ end
 
 local scripts: { [string]: MoveScript } = {
 	Soccer_M1 = { Run = m1, OnHit = m1Hit },
-	Soccer_LightKick = { Run = lightKick },
+	Soccer_LightKick = { Run = lightKick, HitSound = "Soccer_LightKickHit" },
 	Soccer_LightningShot = { Run = lightningShot },
 	Soccer_DribbleDash = { Run = dribbleDash, OnHit = dribbleHit },
 	Soccer_BicycleKick = { Run = bicycleKick },

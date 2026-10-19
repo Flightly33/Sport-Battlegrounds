@@ -55,6 +55,27 @@ AssetIds.Sounds = {
 	KO = "",
 	Click = "",
 	Ping = "",
+	Helicopter = "", -- rotor loop for the helicopter that circles the stadium (silent until set)
+
+	-- Soccer: ids you picked per move (names and fallbacks in Shared/AudioCatalog.Custom). A repeated
+	-- id is on purpose: Soccer_M1_4 is also the Dribble Dash kick, and one lightning crack serves both
+	-- the Dribble Dash and the Bicycle Kick.
+	Soccer_M1_1 = "114637695466966",
+	Soccer_M1_2 = "130907980308479",
+	Soccer_M1_3 = "119801699610817",
+	Soccer_M1_4 = "87240804552787",
+	Soccer_LightKick = "9119327493", -- foot meets the ball
+	Soccer_LightKickHit = "109316755832781", -- the ball meets an enemy
+	Soccer_LightningShot = "110208060085134",
+	Soccer_DashRun = "103677674954702",
+	Soccer_DashKick = "87240804552787",
+	Soccer_DashLightning = "136437776813407",
+	Soccer_BicycleLeap = "123867785814212",
+	Soccer_BicycleImpact = "74149238738530",
+	Soccer_BicycleLightning = "136437776813407",
+	Soccer_AwakenIntro = "18173968754",
+	Soccer_AwakenElectricity = "134540810991378",
+	Soccer_AwakenTheme = "126981868995896", -- loops for as long as the awakening lasts
 }
 
 -- Background music ids, played shuffled. Leave empty to use the audio-library search.

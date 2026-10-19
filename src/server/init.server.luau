@@ -16,6 +16,7 @@ local CharacterService = require(script.CharacterService)
 local DummyService = require(script.DummyService)
 local MatchService = require(script.MatchService)
 local AudioService = require(script.AudioService)
+local SkinService = require(script.SkinService)
 
 local started = os.clock()
 -- The stadium is baked into the place (Workspace.Stadium). If it was deleted, build a fresh one.
@@ -26,6 +27,7 @@ AudioService.Init()
 CombatService.Init()
 MoveService.Init()
 MatchService.Init()
+SkinService.Init() -- before CharacterService: spawning asks which skin to wear
 CharacterService.Init()
 DummyService.Init()
 

@@ -18,7 +18,7 @@ local AudioCatalog = require(Shared.AudioCatalog)
 
 local Sound = {}
 
-type Def = { Id: string, Pitch: number, Volume: number, Library: boolean }
+type Def = { Id: string, Pitch: number, Volume: number, Library: boolean, Steady: boolean? }
 
 local BUILTIN: { [string]: Def } = {
 	Whoosh = { Id = "rbxasset://sounds/swordslash.wav", Pitch = 1.25, Volume = 0.45, Library = false },
@@ -79,8 +79,9 @@ Sound.SplitIds = splitIds
 
 local refreshLoops: () -> ()
 
--- Preloads a library id once; it's only played after it loads.
-local function verify(id: string)
+-- Preloads a library id once; it's only played after it loads. `label` names the sound slot in the
+-- warning, so a bad id is easy to find.
+local function verify(id: string, label: string?)
 	if status[id] ~= nil then
 		return
 	end
@@ -102,7 +103,7 @@ local function verify(id: string)
 		if status[id] == true then
 			refreshLoops()
 		else
-			warn("[Sound] couldn't load " .. id .. "; using the built-in sound instead")
+			warn("[Sound] couldn't load " .. id .. (if label then " (" .. label .. ")" else "") .. "; using the built-in sound instead")
 		end
 	end)
 end
@@ -123,18 +124,25 @@ end
 local function definition(name: string): Def?
 	local base = BUILTIN[name]
 	local spec = AudioCatalog.Effects[name]
-	local volume = if spec then spec.Volume else if base then base.Volume else 0.6
-	-- 1. Chosen by hand: trusted as is
-	local manual = pick(splitIds((AssetIds.Sounds :: any)[name]))
+	local custom = AudioCatalog.Custom[name]
+	local volume = if spec then spec.Volume elseif custom then custom.Volume elseif base then base.Volume else 0.6
+	-- 1. Chosen by hand: trusted, unless it has already failed to load
+	local chosen: { string } = {}
+	for _, id in splitIds((AssetIds.Sounds :: any)[name]) do
+		if status[id] ~= "failed" then
+			table.insert(chosen, id)
+		end
+	end
+	local manual = pick(chosen)
 	if manual then
-		return { Id = manual, Pitch = 1, Volume = volume, Library = true }
+		return { Id = manual, Pitch = 1, Volume = volume, Library = true, Steady = custom ~= nil and custom.Steady == true }
 	end
 	-- 2. Found by the server, once it has loaded here
 	local folder = audioFolder
 	if folder then
 		local ready: { string } = {}
 		for _, id in splitIds(folder:GetAttribute(name) :: string?) do
-			verify(id)
+			verify(id, name)
 			if status[id] == true then
 				table.insert(ready, id)
 			end
@@ -144,8 +152,14 @@ local function definition(name: string): Def?
 			return { Id = found, Pitch = 1, Volume = volume, Library = true }
 		end
 	end
-	-- 3. Built in
-	return base
+	-- 3. Built in, or the sound this one stands in for
+	if base then
+		return base
+	end
+	if custom and custom.Fallback then
+		return definition(custom.Fallback)
+	end
+	return nil
 end
 
 -- Plays a named sound at a position (3D) or, with no position, on the listener (2D).
@@ -159,10 +173,11 @@ function Sound.Play(name: string, position: Vector3?, pitch: number?, volume: nu
 	if def.Library then
 		shift = math.clamp(1 + (shift - 1) * 0.35, 0.8, 1.2)
 	end
+	local jitter = if def.Steady then 1 else 0.94 + math.random() * 0.12
 	local sound = Instance.new("Sound")
 	sound.SoundId = def.Id
 	sound.Volume = def.Volume * (volume or 1)
-	sound.PlaybackSpeed = def.Pitch * shift * (0.94 + math.random() * 0.12)
+	sound.PlaybackSpeed = def.Pitch * (if def.Steady then 1 else shift) * jitter
 	sound.RollOffMinDistance = 20
 	sound.RollOffMaxDistance = 400
 	sound.SoundGroup = group("SFX")
@@ -189,9 +204,36 @@ function Sound.Play(name: string, position: Vector3?, pitch: number?, volume: nu
 	sound:Play()
 end
 
+-- Starts a long sound (a music theme, a rotor loop) on `parent` and hands it back so the caller can fade
+-- and destroy it; nil when the name resolves to nothing at all. `groupName` is "SFX" (default), "Music"
+-- or "Ambience".
+function Sound.Start(name: string, parent: Instance, looped: boolean, volume: number?, groupName: string?): Sound?
+	local def = definition(name)
+	if not def then
+		return nil
+	end
+	local sound = Instance.new("Sound")
+	sound.Name = name
+	sound.SoundId = def.Id
+	sound.Volume = def.Volume * (volume or 1)
+	sound.PlaybackSpeed = def.Pitch
+	sound.Looped = looped
+	sound.RollOffMinDistance = 30
+	sound.RollOffMaxDistance = 400
+	sound.SoundGroup = group(groupName or "SFX")
+	sound.Parent = parent
+	sound:Play()
+	return sound
+end
+
 local function loopId(name: string): string?
 	local def = definition(name)
 	return def and def.Id
+end
+
+-- The sound id a name would play right now (nil if it would be silent).
+function Sound.Resolve(name: string): string?
+	return loopId(name)
 end
 
 refreshLoops = function()
@@ -223,6 +265,12 @@ function Sound.Loop(name: string, volume: number): Sound
 end
 
 function Sound.Init()
+	-- Check the ids picked by hand up front, so a dead one is reported (and skipped) before it matters
+	for name, ids in AssetIds.Sounds :: any do
+		for _, id in splitIds(ids) do
+			verify(id, name)
+		end
+	end
 	task.spawn(function()
 		local folder = ReplicatedStorage:WaitForChild("Audio", 30)
 		if not folder then
@@ -234,7 +282,7 @@ function Sound.Init()
 				return
 			end
 			for _, id in splitIds(folder:GetAttribute(attribute) :: string?) do
-				verify(id)
+				verify(id, attribute)
 			end
 		end
 		for attribute in folder:GetAttributes() do

@@ -91,8 +91,8 @@ end
 --------------------------------------------------------------------------------
 local function computeAim(root: BasePart, assistRange: number, assistCone: number): Vector3
 	local base = root.CFrame.LookVector
-	-- With shift-lock (or the camera locked behind you) aim where the camera looks
-	if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
+	-- Aim where the camera looks (always with shift-lock, where camera and character agree anyway)
+	if Config.Combat.AimWithCamera or UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
 		local camera = workspace.CurrentCamera
 		if camera then
 			local look = camera.CFrame.LookVector
@@ -402,6 +402,16 @@ end
 --------------------------------------------------------------------------------
 -- Input
 --------------------------------------------------------------------------------
+local logInput = RunService:IsStudio() and Config.Debug.LogInput
+
+-- A move key / button was pressed: starts the move and, in Studio, says what happened.
+local function press(slot: string)
+	local started = Controller.Use(slot)
+	if logInput then
+		print(string.format("[Controller] %s: %s", slot, if started then "started" else "not used (" .. Controller.LastReason .. ")"))
+	end
+end
+
 -- Generic action entry point (keyboard, gamepad and the mobile buttons all end up here).
 function Controller.Action(action: string, down: boolean)
 	if action == "Block" then
@@ -424,17 +434,17 @@ function Controller.Action(action: string, down: boolean)
 		end
 	elseif down then
 		if action == "Move1" then
-			Controller.Use("1")
+			press("1")
 		elseif action == "Move2" then
-			Controller.Use("2")
+			press("2")
 		elseif action == "Move3" then
-			Controller.Use("3")
+			press("3")
 		elseif action == "Move4" then
-			Controller.Use("4")
+			press("4")
 		elseif action == "Awaken" then
-			Controller.Use("Awaken")
+			press("Awaken")
 		elseif action == "Dash" then
-			Controller.Use("Dash")
+			press("Dash")
 		elseif action == "CharacterMenu" then
 			Controller.MenuRequested:Fire()
 		end
@@ -454,7 +464,14 @@ KEY_ACTIONS[Enum.KeyCode.Space] = "Jump"
 KEY_ACTIONS[Enum.KeyCode.ButtonA] = "Jump"
 
 local function onInput(input: InputObject, processed: boolean, down: boolean)
-	if processed and down then
+	-- Mouse and touch that landed on a button are the UI's. Keys are only ours to ignore while typing:
+	-- "processed" is also set when some other Roblox script has bound the key, which would swallow a move.
+	local typing = UserInputService:GetFocusedTextBox() ~= nil
+	local swallowed = if input.UserInputType == Enum.UserInputType.Keyboard then typing else processed
+	if swallowed and down then
+		if logInput and KEY_ACTIONS[input.KeyCode] then
+			print(string.format("[Controller] %s ignored: %s", input.KeyCode.Name, if typing then "typing in a text box" else "Roblox's UI took the input"))
+		end
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then

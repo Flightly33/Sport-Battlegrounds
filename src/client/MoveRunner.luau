@@ -128,6 +128,8 @@ export type MoveScript = {
 	Run: (ctx: Ctx) -> (),
 	-- Extra effects when the server confirms a hit of this move (on every client)
 	OnHit: ((hit: HitInfo, palette: Palette) -> ())?,
+	-- Sound name that replaces the generic hit sound when this move lands
+	HitSound: string?,
 }
 
 export type HitInfo = {

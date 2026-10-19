@@ -6,6 +6,8 @@
 	(Props.BuildBall) for projectiles.
 ]]
 
+local Skins = require(script.Parent.Skins)
+
 local Props = {}
 
 local PROP_HANDLE = "SB_PropHandle"
@@ -63,14 +65,10 @@ Props.Radius = {
 	Baseball = 0.3,
 }
 
-local function soccerBall(origin: CFrame): { Part }
-	local r = Props.Radius.Soccer
-	local core = part("Ball", Vector3.one * r * 2, WHITE, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-	core.CFrame = origin
-	local parts = { core }
-	-- Black pentagons at the 12 vertices of an icosahedron
+-- The 12 vertices of an icosahedron: where a soccer ball's pentagons sit.
+local function icosahedron(): { Vector3 }
 	local g = (1 + math.sqrt(5)) / 2
-	local dirs = {
+	return {
 		Vector3.new(0, 1, g),
 		Vector3.new(0, 1, -g),
 		Vector3.new(0, -1, g),
@@ -84,11 +82,45 @@ local function soccerBall(origin: CFrame): { Part }
 		Vector3.new(-g, 0, 1),
 		Vector3.new(-g, 0, -1),
 	}
-	for i, d in dirs do
+end
+
+local function soccerBall(origin: CFrame): { Part }
+	local r = Props.Radius.Soccer
+	local core = part("Ball", Vector3.one * r * 2, WHITE, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	core.CFrame = origin
+	local parts = { core }
+	for i, d in icosahedron() do
 		local n = d.Unit
 		local patch = disc("Patch" .. i, origin * CFrame.new(n * (r - 0.03)), n, r * 0.74, 0.08, BLACK)
 		table.insert(parts, patch)
 	end
+	return parts
+end
+
+-- Skin "CosmicBall": a night-sky ball whose patches are glowing stars, wrapped in two bands of light
+-- and a faint halo. All Neon on a dark core, so the stadium's bloom makes it shine.
+local function cosmicBall(origin: CFrame): { Part }
+	local skin = Skins.Get("CosmicBall") :: Skins.Skin
+	local r = Props.Radius.Soccer
+	local core = part("Ball", Vector3.one * r * 2, skin.Colors.Deep, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	core.CFrame = origin
+	local parts = { core }
+	for i, d in icosahedron() do
+		local n = d.Unit
+		local color = if i % 2 == 0 then skin.Colors.Glow else skin.Colors.Spark
+		table.insert(parts, disc("Star" .. i, origin * CFrame.new(n * (r - 0.03)), n, r * 0.5, 0.08, color))
+		parts[#parts].Material = Enum.Material.Neon
+	end
+	for i, tilt in { CFrame.Angles(0, 0, math.rad(35)), CFrame.Angles(math.rad(70), 0, math.rad(-20)) } do
+		local band = disc("Band" .. i, origin * tilt, Vector3.yAxis, r * 2.18, 0.035, if i == 1 then skin.Colors.Glow else skin.Colors.Spark)
+		band.Material = Enum.Material.Neon
+		band.Transparency = 0.25
+		table.insert(parts, band)
+	end
+	local halo = part("Halo", Vector3.one * r * 2.5, skin.Colors.Spark, Enum.Material.Neon, Enum.PartType.Ball)
+	halo.Transparency = 0.82
+	halo.CFrame = origin
+	table.insert(parts, halo)
 	return parts
 end
 
@@ -147,11 +179,21 @@ local BALLS: { [string]: (CFrame) -> { Part } } = {
 	Baseball = baseball,
 }
 
+local SKIN_BALLS: { [string]: (CFrame) -> { Part } } = {
+	CosmicBall = cosmicBall,
+}
+
+-- The ball builder for a class, in `skinId`'s skin when that skin belongs to the class.
+local function ballBuilder(classId: string, skinId: string?): (CFrame) -> { Part }
+	local skin = Skins.ForClass(skinId, classId)
+	return (skin and SKIN_BALLS[skin.Id]) or BALLS[classId] or soccerBall
+end
+
 -- A loose ball model (projectiles, held baseballs). PrimaryPart is the core sphere.
-function Props.BuildBall(classId: string, anchored: boolean?): Model
+function Props.BuildBall(classId: string, anchored: boolean?, skinId: string?): Model
 	local model = Instance.new("Model")
 	model.Name = classId .. "Ball"
-	local build: (CFrame) -> { Part } = BALLS[classId] or soccerBall
+	local build = ballBuilder(classId, skinId)
 	local parts = build(CFrame.identity)
 	local core = parts[1]
 	for i, p in parts do
@@ -316,8 +358,10 @@ local function cosmetics(character: Model, classId: string): { Part }
 	return out
 end
 
--- Removes any previous prop, then builds the class's prop and cosmetics onto the character.
-function Props.Attach(character: Model, classId: string): BasePart?
+-- Removes any previous prop, then builds the class's prop and cosmetics onto the character. A ball
+-- takes `skinId` if it is a skin for the class; the character's BallSkin attribute records what was
+-- applied, so every client builds thrown balls to match.
+function Props.Attach(character: Model, classId: string, skinId: string?): BasePart?
 	for _, child in character:GetChildren() do
 		if child.Name == "SB_Props" then
 			child:Destroy()
@@ -327,6 +371,8 @@ function Props.Attach(character: Model, classId: string): BasePart?
 	if not info then
 		return nil
 	end
+	local skin = Skins.ForClass(skinId, classId)
+	character:SetAttribute("BallSkin", if skin then skin.Id else nil)
 	local part0 = character:FindFirstChild(info.Part0)
 	if not part0 or not part0:IsA("BasePart") then
 		return nil
@@ -339,7 +385,8 @@ function Props.Attach(character: Model, classId: string): BasePart?
 	handle.Transparency = 1
 	handle.CFrame = part0.CFrame * rest
 	handle.Parent = folder
-	for _, p in info.Build(handle.CFrame) do
+	local build = if skin and SKIN_BALLS[skin.Id] then SKIN_BALLS[skin.Id] else info.Build
+	for _, p in build(handle.CFrame) do
 		p.Parent = folder
 		weld(handle, p)
 	end

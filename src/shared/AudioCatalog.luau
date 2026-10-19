@@ -41,6 +41,32 @@ AudioCatalog.Effects = {
 	Ping = { Keywords = { "notification", "ui ping", "ding" }, MaxDuration = 1.5, Volume = 0.35 },
 } :: { [string]: Search }
 
+-- Sounds that belong to one move. Their ids are set by hand in Shared/AssetIds.Sounds (nothing is
+-- searched for them); if an id is empty or fails to load, `Fallback` (one of the Effects above) plays
+-- instead, so a move is never silent. Steady sounds skip the small random pitch change that keeps
+-- repeated hits from sounding identical, because they are lined up with an animation.
+export type Custom = { Fallback: string?, Volume: number, Steady: boolean? }
+
+AudioCatalog.Custom = {
+	Soccer_M1_1 = { Fallback = "Kick", Volume = 0.8 },
+	Soccer_M1_2 = { Fallback = "Kick", Volume = 0.8 },
+	Soccer_M1_3 = { Fallback = "Kick", Volume = 0.8 },
+	Soccer_M1_4 = { Fallback = "Kick", Volume = 0.95 },
+	Soccer_LightKick = { Fallback = "Kick", Volume = 0.8 },
+	Soccer_LightKickHit = { Fallback = "Hit", Volume = 0.85 },
+	Soccer_LightningShot = { Fallback = "Thunder", Volume = 0.85, Steady = true },
+	Soccer_DashRun = { Fallback = "Whoosh", Volume = 0.7, Steady = true },
+	Soccer_DashKick = { Fallback = "Kick", Volume = 0.95 },
+	Soccer_DashLightning = { Fallback = "Zap", Volume = 0.8 },
+	Soccer_BicycleLeap = { Fallback = "Whoosh", Volume = 0.75, Steady = true },
+	Soccer_BicycleImpact = { Fallback = "Explosion", Volume = 0.95, Steady = true },
+	Soccer_BicycleLightning = { Fallback = "Thunder", Volume = 0.85, Steady = true },
+	Soccer_AwakenIntro = { Fallback = "Awaken", Volume = 0.9, Steady = true },
+	Soccer_AwakenElectricity = { Fallback = "Zap", Volume = 0.7, Steady = true },
+	Soccer_AwakenTheme = { Volume = 0.5, Steady = true }, -- music: no fallback, the stadium music just carries on
+	Helicopter = { Volume = 0.35, Steady = true },
+} :: { [string]: Custom }
+
 -- Background music: a few searches, pooled into one shuffled playlist.
 AudioCatalog.Music = {
 	Keywords = { "sports anthem", "hype rock", "epic battle", "drum and bass", "stadium rock" },

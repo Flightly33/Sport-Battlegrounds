@@ -28,6 +28,7 @@ local order: { number } = {}
 local cursor = 0
 local current: Sound? = nil
 local muted = false
+local duck = 1 -- 1 = full volume; lower while a louder theme (an awakening) plays over it
 local generation = 0
 local button: TextButton? = nil
 
@@ -46,7 +47,7 @@ local function fadeTo(sound: Sound, volume: number, time: number): Tween
 end
 
 local function targetVolume(): number
-	return if muted then 0 else Config.Audio.MusicVolume
+	return if muted then 0 else Config.Audio.MusicVolume * duck
 end
 
 local playNext: () -> ()
@@ -130,11 +131,22 @@ end
 
 function Music.SetMuted(value: boolean)
 	muted = value
+	-- The whole Music group, so a theme started elsewhere (an awakening) goes quiet too
+	Sound.Group("Music").Volume = if value then 0 else 1
 	local sound = current
 	if sound then
 		fadeTo(sound, targetVolume(), 0.4)
 	end
 	refreshButton()
+end
+
+-- Fades the playlist to `factor` (0..1) of its volume, e.g. under an awakening theme.
+function Music.SetDuck(factor: number)
+	duck = math.clamp(factor, 0, 1)
+	local sound = current
+	if sound and not muted then
+		fadeTo(sound, targetVolume(), 0.6)
+	end
 end
 
 function Music.Toggle()

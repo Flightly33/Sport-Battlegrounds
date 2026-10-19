@@ -20,6 +20,7 @@ local StadiumLayout = require(Shared.Stadium.Layout)
 
 local AwakenVFX = require(script.Parent.AwakenVFX)
 local CombatService = require(script.Parent.CombatService)
+local SkinService = require(script.Parent.SkinService)
 
 local CharacterService = {}
 
@@ -97,6 +98,7 @@ function CharacterService.Spawn(player: Player)
 		return
 	end
 	local classId = (player:GetAttribute("Class") :: string?) or Characters.Default
+	local skin = SkinService.Equipped(player, classId) -- may wait for the ownership check, so ask before building anything
 	local description = getDescription(player)
 	local ok, model = pcall(function()
 		return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15, Enum.AssetTypeVerification.Always)
@@ -128,7 +130,7 @@ function CharacterService.Spawn(player: Player)
 		print(string.format("[CharacterService] %s spawned %.1f studs tall (about %.2f m at Roblox's 0.28 m per stud)", player.Name, model:GetExtentsSize().Y, model:GetExtentsSize().Y * 0.28))
 	end
 
-	Props.Attach(model, classId)
+	Props.Attach(model, classId, skin)
 	CombatService.Register(model, player, classId)
 	AwakenVFX.Attach(model)
 	humanoid.Died:Connect(function()
@@ -179,7 +181,7 @@ local function onSelect(player: Player, classId: unknown)
 		return
 	end
 	CombatService.SetClass(fighter, classId)
-	Props.Attach(fighter.Model, classId)
+	Props.Attach(fighter.Model, classId, SkinService.Equipped(player, classId))
 end
 
 function CharacterService.Init()
@@ -188,6 +190,13 @@ function CharacterService.Init()
 	fightersFolder.Parent = workspace
 
 	Remotes.Event("SelectCharacter").OnServerEvent:Connect(onSelect)
+	-- A gamepass bought mid-match: put the new skin on straight away
+	SkinService.Changed:Connect(function(player: Player)
+		local fighter = CombatService.ForPlayer(player)
+		if fighter and fighter.Alive then
+			Props.Attach(fighter.Model, fighter.Class, SkinService.Equipped(player, fighter.Class))
+		end
+	end)
 
 	local function onPlayer(player: Player)
 		if player:GetAttribute("Class") == nil then

@@ -47,6 +47,7 @@ local SERVICES = {
 	"MaterialService",
 	"AssetService",
 	"ContentProvider",
+	"MarketplaceService",
 }
 
 local RIG = {
@@ -431,6 +432,12 @@ function World:InstallHooks()
 			end
 		end,
 	}
+	M.MarketplaceService = {
+		-- Nobody owns a gamepass in the simulator (Config.Shop.GrantAllSkins is what hands out skins)
+		UserOwnsGamePassAsync = function()
+			return false
+		end,
+	}
 	M.StarterGui = {
 		SetCoreGuiEnabled = function() end,
 		SetCore = function() end,
@@ -441,6 +448,9 @@ function World:InstallHooks()
 		end,
 		GetMouseLocation = function()
 			return Vector2.new(640, 360)
+		end,
+		GetFocusedTextBox = function()
+			return nil
 		end,
 	}
 	M.RunService = {

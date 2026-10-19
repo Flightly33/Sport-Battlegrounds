@@ -39,10 +39,15 @@ function Kit.Frame(ctx: Ctx): CFrame
 	return CFrame.lookAt(ctx.Root.Position, ctx.Root.Position + flat.Unit)
 end
 
+-- The ball skin this fighter wears (set by the server when it attaches the prop), so thrown balls match.
+function Kit.BallSkin(ctx: Ctx): string?
+	return ctx.Character:GetAttribute("BallSkin") :: string?
+end
+
 -- A loose ball for projectiles (anchored, so it can be moved freely).
-function Kit.Ball(classId: string, scale: number?): () -> Instance
+function Kit.Ball(classId: string, scale: number?, skinId: string?): () -> Instance
 	return function(): Instance
-		local model = Props.BuildBall(classId, true)
+		local model = Props.BuildBall(classId, true, skinId)
 		if scale and scale ~= 1 then
 			model:ScaleTo(scale)
 		end
@@ -51,9 +56,9 @@ function Kit.Ball(classId: string, scale: number?): () -> Instance
 end
 
 -- Ball visual with a glowing shell and a light around it.
-function Kit.GlowBall(classId: string, color: Color3, glowSize: number, scale: number?): () -> Instance
+function Kit.GlowBall(classId: string, color: Color3, glowSize: number, scale: number?, skinId: string?): () -> Instance
 	return function(): Instance
-		local model = Props.BuildBall(classId, true)
+		local model = Props.BuildBall(classId, true, skinId)
 		if scale and scale ~= 1 then
 			model:ScaleTo(scale)
 		end
@@ -183,6 +188,8 @@ export type M1Set = {
 	Downslam: M1Entry,
 	Size: Vector3?,
 	Reach: number?,
+	-- One sound name per chain step, played where the strike lands (the 4th also serves the uppercut / downslam)
+	Sounds: { string }?,
 	-- Swing effect at the moment of the hit (both modes)
 	Swing: ((ctx: Ctx, step: number, mirrored: boolean, position: Vector3) -> ())?,
 }
@@ -220,6 +227,10 @@ function Kit.M1(ctx: Ctx, set: M1Set)
 	local frame = Kit.Frame(ctx)
 	local at = (frame * CFrame.new(0, 0, -reach)).Position
 	Kit.Contact(ctx, at, if finisher then 1.6 else 0.7)
+	local sounds = set.Sounds
+	if sounds then
+		Sound.Play(sounds[math.clamp(step, 1, #sounds)], at)
+	end
 	if set.Swing then
 		set.Swing(ctx, step, mirrored, at)
 	end
@@ -237,13 +248,19 @@ end
 -- Awakening template
 --------------------------------------------------------------------------------
 -- Plays the class's transformation clip with a cinematic camera for its owner, calls `burst` at the
--- clip's Burst mark (the climax), and blows nearby enemies back.
-function Kit.Awaken(ctx: Ctx, clip: Pose.Clip, buildUp: (ctx: Ctx) -> (), burst: (ctx: Ctx, at: Vector3) -> ())
+-- clip's Burst mark (the climax), and blows nearby enemies back. `sounds` swaps the generic power-up
+-- sound for the class's own intro (and an electricity layer on top); the awakening theme that plays
+-- for the whole awakening is handled by Client/Awakenings.
+export type AwakenSounds = { Intro: string?, Electricity: string? }
+function Kit.Awaken(ctx: Ctx, clip: Pose.Clip, buildUp: (ctx: Ctx) -> (), burst: (ctx: Ctx, at: Vector3) -> (), sounds: AwakenSounds?)
 	local track = ctx:Play(clip)
 	if ctx.IsOwner then
 		CameraFX.Orbit(ctx.Root, 2.1, -35, 65, 13, 2.5, 55)
 	end
-	Sound.Play("Awaken", ctx.Root.Position, 0.9)
+	Sound.Play(if sounds and sounds.Intro then sounds.Intro else "Awaken", ctx.Root.Position, 0.9)
+	if sounds and sounds.Electricity then
+		Sound.Play(sounds.Electricity, ctx.Root.Position)
+	end
 	task.spawn(buildUp, ctx)
 	if not ctx:Until(track, "Burst") then
 		return

@@ -121,6 +121,13 @@ function HUD.Build(screen: ScreenGui)
 		shade.Parent = f
 		local timer = Theme.Label(f, "", UDim2.new(1, 0, 0, 28), UDim2.fromOffset(0, 24), Theme.Heading)
 		Theme.TextStroke(2).Parent = timer
+		-- Click (or tap) a slot to use it
+		f.Active = true
+		f.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				Controller.Action(if slot == "Awaken" then "Awaken" else "Move" .. slot, true)
+			end
+		end)
 		table.insert(slots, { Frame = f, Name = name, Key = key, Shade = shade, Timer = timer, Stroke = stroke, Slot = slot })
 	end
 

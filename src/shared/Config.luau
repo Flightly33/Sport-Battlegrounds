@@ -55,10 +55,10 @@ Config.Block = {
 Config.Dash = {
 	Cooldown = 2.2, -- side / back dash
 	FrontCooldown = 3.5,
-	Distance = 24, -- studs covered by a forward dash
-	SideDistance = 19,
-	BackDistance = 18,
-	Duration = 0.28, -- seconds
+	Distance = 42, -- studs covered by a forward dash
+	SideDistance = 32,
+	BackDistance = 30,
+	Duration = 0.34, -- seconds
 	-- Speed curve (see Client/Motion): starts at StartSpeed x the peak, reaches the peak over the first
 	-- EaseIn of the dash, holds, then eases down to EndSpeed x the peak over the last EaseOut.
 	StartSpeed = 0.45,

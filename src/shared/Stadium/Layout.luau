@@ -20,7 +20,7 @@ local M = Layout.STUDS_PER_METER
 
 -- Stretches the playing area (pitch, markings) for more room to fight, without growing goals, seats,
 -- fans or players. 1 = a regulation pitch.
-Layout.FIELD_SCALE = 1
+Layout.FIELD_SCALE = 2
 
 -- The pitch: regulation 105 x 68 m.
 Layout.PITCH_HALF_X = 105 / 2 * M * Layout.FIELD_SCALE

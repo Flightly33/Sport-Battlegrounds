@@ -66,6 +66,17 @@ local function addKill(killer: string, victim: string, killerClass: string, vict
 	end
 end
 
+-- Fades a label out and then hides it: its text stroke doesn't fade with the text, so a label
+-- that is only made transparent leaves its dark outline on screen.
+local function fadeOut(label: TextLabel, duration: number, stamp: number)
+	TweenService:Create(label, TweenInfo.new(duration), { TextTransparency = 1 }):Play()
+	task.delay(duration, function()
+		if label:GetAttribute("Stamp") == stamp then
+			label.Visible = false
+		end
+	end)
+end
+
 function Feed.Announce(text: string, color: Color3?, sub: string?)
 	banner.Text = text
 	banner.TextColor3 = color or Theme.Text
@@ -79,7 +90,7 @@ function Feed.Announce(text: string, color: Color3?, sub: string?)
 	banner:SetAttribute("Stamp", stamp)
 	task.delay(3.2, function()
 		if banner:GetAttribute("Stamp") == stamp then
-			TweenService:Create(banner, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+			fadeOut(banner, 0.4, stamp)
 			bannerSub.Visible = false
 		end
 	end)
@@ -93,7 +104,7 @@ function Feed.Toast(text: string)
 	toast:SetAttribute("Stamp", stamp)
 	task.delay(3, function()
 		if toast:GetAttribute("Stamp") == stamp then
-			TweenService:Create(toast, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+			fadeOut(toast, 0.4, stamp)
 		end
 	end)
 end
@@ -106,8 +117,12 @@ function Feed.MoveName(text: string, color: Color3)
 	moveBanner.Position = UDim2.new(0.5, -60, 0.3, 0)
 	moveBanner.Visible = true
 	TweenService:Create(moveBanner, TweenInfo.new(1.4, Enum.EasingStyle.Quart), { Position = UDim2.new(0.5, 60, 0.3, 0) }):Play()
+	local stamp = os.clock()
+	moveBanner:SetAttribute("Stamp", stamp)
 	task.delay(1.1, function()
-		TweenService:Create(moveBanner, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+		if moveBanner:GetAttribute("Stamp") == stamp then
+			fadeOut(moveBanner, 0.3, stamp)
+		end
 	end)
 end
 

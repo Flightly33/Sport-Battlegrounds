@@ -31,7 +31,9 @@ local fightersFolder: Folder
 local function getDescription(player: Player): HumanoidDescription
 	local cached = descriptions[player]
 	if cached then
-		return cached
+		-- A fresh copy each spawn: building a character can take the description over, and it goes
+		-- when that character is destroyed
+		return cached:Clone()
 	end
 	local ok, result = pcall(function()
 		return Players:GetHumanoidDescriptionFromUserId(math.max(1, player.UserId))
@@ -46,7 +48,7 @@ local function getDescription(player: Player): HumanoidDescription
 	description.ClimbAnimation = 0
 	description.SwimAnimation = 0
 	descriptions[player] = description
-	return description
+	return description:Clone()
 end
 
 -- A spawn point on the pitch, as far as possible from everyone else.
@@ -130,11 +132,30 @@ function CharacterService.Spawn(player: Player)
 	humanoid.Died:Connect(function()
 		task.delay(Config.Player.RespawnTime, function()
 			if player.Parent and player.Character == model then
-				model:Destroy()
-				CharacterService.Spawn(player)
+				CharacterService.Respawn(player)
 			end
 		end)
 	end)
+end
+
+-- Replaces the player's character with a fresh one. Never leaves them without one: a failed spawn is
+-- logged and the watchdog in Init tries again.
+local respawning: { [Player]: boolean } = {}
+function CharacterService.Respawn(player: Player)
+	if respawning[player] then
+		return
+	end
+	respawning[player] = true
+	local old = player.Character
+	local ok, err = pcall(function()
+		CharacterService.Spawn(player)
+	end)
+	if not ok then
+		warn("[CharacterService] respawn failed for", player.Name, err)
+	elseif old and old ~= player.Character then
+		old:Destroy()
+	end
+	respawning[player] = nil
 end
 
 -- Class switch from the character menu. Out of combat it happens on the spot; in combat you have to wait.
@@ -185,10 +206,26 @@ function CharacterService.Init()
 		end
 	end)
 
-	-- Anyone who falls out of the arena respawns
+	-- Anyone who falls out of the arena respawns, and anyone left dead or without a character is brought
+	-- back (in case a respawn was missed)
+	local deadSince: { [Player]: number } = {}
 	task.spawn(function()
 		while true do
 			task.wait(1)
+			for _, player in Players:GetPlayers() do
+				local character = player.Character
+				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+				local alive = character and character.Parent and humanoid and humanoid.Health > 0
+				if alive then
+					deadSince[player] = nil
+				else
+					deadSince[player] = deadSince[player] or os.clock()
+					if os.clock() - deadSince[player] > Config.Player.RespawnTime + 2 then
+						deadSince[player] = nil
+						task.spawn(CharacterService.Respawn, player)
+					end
+				end
+			end
 			for _, fighter in CombatService.Fighters do
 				if fighter.Alive and fighter.Root.Position.Y < Config.Arena.FloorY - 60 then
 					fighter.Humanoid.Health = 0

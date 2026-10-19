@@ -77,7 +77,7 @@ type Entry = {
 }
 
 local entries: { [Model]: Entry } = {}
-local CULL_DISTANCE = 320
+local CULL_DISTANCE = 500
 local LOW_RATE_DISTANCE = 140
 -- Output easing (1/s); legs are faster so planted feet don't slide
 local SMOOTH_RATE = 28

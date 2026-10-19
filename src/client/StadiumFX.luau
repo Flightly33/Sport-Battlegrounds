@@ -2,7 +2,8 @@
 	StadiumFX: the stadium coming alive, drawn locally.
 		LED boards / ribbon boards   scrolling text in each stand's colours, flashing on big moments
 		Jumbotrons                   title card, announcements, the kill feed and the top KOs
-		Floodlights                  soft light shafts from the masts and the roof onto the pitch
+		Floodlights                  soft light shafts from the masts and the roof onto the pitch, and the
+		                             light grid that lights the pitch for the night match
 		Crowd ambience               (only if a sound id is set in Shared/AssetIds)
 ]]
 
@@ -12,6 +13,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Layout = require(Shared.Stadium.Layout)
 local Characters = require(Shared.Characters)
 local Remotes = require(Shared.Remotes)
 
@@ -219,7 +221,44 @@ local function lightShaft(lamp: BasePart)
 	beam.Parent = lamp
 end
 
+-- Night match: a grid of downlights over the pitch (a light only reaches 60 studs, so the floodlights
+-- themselves are too high up to light it). Cool white, no shadows, so it stays cheap.
+local PITCH_LIGHT_HEIGHT = 35
+local PITCH_LIGHT_SPACING = 85
+local function pitchLights()
+	local folder = Instance.new("Folder")
+	folder.Name = "PitchLights"
+	local nx = math.ceil(Layout.BARRIER_HALF_X * 2 / PITCH_LIGHT_SPACING)
+	local nz = math.ceil(Layout.BARRIER_HALF_Z * 2 / PITCH_LIGHT_SPACING)
+	for i = 1, nx do
+		for j = 1, nz do
+			local x = (i - (nx + 1) / 2) * Layout.BARRIER_HALF_X * 2 / nx
+			local z = (j - (nz + 1) / 2) * Layout.BARRIER_HALF_Z * 2 / nz
+			local emitter = Instance.new("Part")
+			emitter.Name = "PitchLight"
+			emitter.Anchored = true
+			emitter.CanCollide = false
+			emitter.CanQuery = false
+			emitter.CanTouch = false
+			emitter.Transparency = 1
+			emitter.Size = Vector3.one
+			emitter.CFrame = CFrame.new(x, PITCH_LIGHT_HEIGHT, z)
+			local light = Instance.new("SpotLight")
+			light.Face = Enum.NormalId.Bottom
+			light.Angle = 120
+			light.Range = 60
+			light.Brightness = 2.2
+			light.Color = Color3.fromRGB(225, 232, 255)
+			light.Shadows = false
+			light.Parent = emitter
+			emitter.Parent = folder
+		end
+	end
+	folder.Parent = workspace
+end
+
 function StadiumFX.Init()
+	pitchLights()
 	task.spawn(function()
 		local root = stadium()
 		if not root then

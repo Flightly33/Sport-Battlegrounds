@@ -80,16 +80,7 @@ local function build(spot: CFrame, index: number, kind: string)
 			end
 		end)
 	end
-	-- Walk back to its spot after being knocked around
-	task.spawn(function()
-		while model.Parent and fighter.Alive do
-			task.wait(2.5)
-			if fighter.Alive and not CombatService.IsStunned(fighter) and (root.Position - spot.Position).Magnitude > 6 then
-				root.AssemblyLinearVelocity = Vector3.zero
-				model:PivotTo(spot)
-			end
-		end
-	end)
+	-- Dummies stay wherever they're knocked; they only go back to their spot when they die and respawn
 	humanoid.Died:Connect(function()
 		task.delay(Config.Arena.DummyRespawn, function()
 			model:Destroy()

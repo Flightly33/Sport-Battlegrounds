@@ -49,6 +49,9 @@ type Active = {
 	Collide: boolean,
 	Carry: number,
 	Last: Vector3,
+	From: Vector3, -- where the push started
+	Expected: number?, -- studs it should cover (distance pushes)
+	Blocked: boolean, -- a wall or the arena edge cut it short
 }
 
 local function smoothstep(a: number): number
@@ -147,19 +150,33 @@ local function step(a: Active, dt: number)
 	local v = a.Base * a.Profile(t)
 	local h = Vector3.new(v.X, 0, v.Z)
 	local position = a.Root.Position
+	local wanted = h
 	if a.Collide then
 		h = alongWalls(position, h, dt)
 	end
 	if a.Bounded then
 		h = insideArena(position, h, dt)
 	end
+	if (wanted - h).Magnitude > 1 then
+		a.Blocked = true
+	end
 	local out = Vector3.new(h.X, if a.Vertical then v.Y else 0, h.Z)
 	a.Constraint.VectorVelocity = out
+	-- Also set the velocity directly: the constraint holds it against the Humanoid, and this makes sure
+	-- the push moves the body from its first frame even where the constraint takes hold late
+	local current = a.Root.AssemblyLinearVelocity
+	a.Root.AssemblyLinearVelocity = Vector3.new(out.X, if a.Vertical then out.Y else current.Y, out.Z)
 	a.Last = out
 end
 
 local function finish(a: Active, natural: boolean)
 	active[a.Constraint] = nil
+	if natural and a.Expected and not a.Blocked and a.Root.Parent then
+		local moved = ((a.Root.Position - a.From) * Vector3.new(1, 0, 1)).Magnitude
+		if moved < a.Expected * 0.4 then
+			warn(string.format("[Motion] a push covered %.1f of %.1f studs - something is holding the character back", moved, a.Expected))
+		end
+	end
 	if natural and a.Carry > 0 and a.Root.Parent then
 		local keep = a.Last * a.Carry
 		a.Root.AssemblyLinearVelocity = Vector3.new(keep.X, a.Root.AssemblyLinearVelocity.Y, keep.Z)
@@ -225,6 +242,9 @@ function Motion.Push(root: BasePart, spec: PushSpec): LinearVelocity
 		Collide = spec.Collide ~= false,
 		Carry = spec.Carry or 0,
 		Last = Vector3.zero,
+		From = root.Position,
+		Expected = if spec.Velocity then nil else spec.Distance,
+		Blocked = false,
 	}
 	refreshFilter()
 	step(a, 1 / 60)

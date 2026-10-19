@@ -1,0 +1,9 @@
+# Rojo / tooling
+sourcemap.json
+*.rbxl.lock
+*.rbxlx.lock
+roblox.toml
+.DS_Store
+# Blender / preview scratch
+blender/out/preview/
+__pycache__/

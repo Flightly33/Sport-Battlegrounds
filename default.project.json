@@ -1,0 +1,146 @@
+{
+  "name": "SportsBattlegrounds",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "CameraMaxZoomDistance": 32,
+        "CameraMinZoomDistance": 4,
+        "EnableMouseLockOption": true,
+        "CharacterWalkSpeed": 16,
+        "CharacterJumpPower": 50,
+        "AutoJumpEnabled": false
+      },
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false,
+        "Gravity": 196.2
+      },
+      "Stadium": {
+        "$path": "map/Stadium.rbxm"
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 17.35,
+        "GeographicLatitude": 28,
+        "Brightness": 3.2,
+        "Ambient": [
+          0.26,
+          0.22,
+          0.32
+        ],
+        "OutdoorAmbient": [
+          0.55,
+          0.47,
+          0.56
+        ],
+        "ColorShift_Top": [
+          1,
+          0.86,
+          0.7
+        ],
+        "ColorShift_Bottom": [
+          0.35,
+          0.25,
+          0.5
+        ],
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
+        "ExposureCompensation": 0.15,
+        "GlobalShadows": true,
+        "ShadowSoftness": 0.22
+      },
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.3,
+          "Offset": 0.12,
+          "Color": [
+            1,
+            0.75,
+            0.63
+          ],
+          "Decay": [
+            0.43,
+            0.31,
+            0.6
+          ],
+          "Glare": 0.55,
+          "Haze": 1.5
+        }
+      },
+      "Sky": {
+        "$className": "Sky",
+        "$properties": {
+          "SunAngularSize": 18,
+          "StarCount": 1500
+        }
+      },
+      "Bloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.75,
+          "Size": 30,
+          "Threshold": 1.2
+        }
+      },
+      "Grade": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.02,
+          "Contrast": 0.14,
+          "Saturation": 0.2,
+          "TintColor": [
+            1,
+            0.965,
+            0.93
+          ]
+        }
+      },
+      "SunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": {
+          "Intensity": 0.07,
+          "Spread": 0.55
+        }
+      },
+      "DepthOfField": {
+        "$className": "DepthOfFieldEffect",
+        "$properties": {
+          "FarIntensity": 0.14,
+          "FocusDistance": 110,
+          "InFocusRadius": 130,
+          "NearIntensity": 0
+        }
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}

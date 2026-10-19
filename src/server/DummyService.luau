@@ -1,0 +1,98 @@
+--[[
+	DummyService: training dummies on the track behind the east goal, so combos can be practised
+	alone (and the game can be tested in Studio with one player). They respawn after being KO'd.
+	The last one blocks, to practise guard breaks.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
+local StadiumLayout = require(Shared.Stadium.Layout)
+
+local CombatService = require(script.Parent.CombatService)
+
+local DummyService = {}
+
+local folder: Folder
+
+local function build(spot: CFrame, index: number, blocking: boolean)
+	local description = Instance.new("HumanoidDescription")
+	local gray = Color3.fromRGB(150, 150, 160)
+	description.HeadColor = Color3.fromRGB(220, 220, 225)
+	description.TorsoColor = if blocking then Color3.fromRGB(70, 90, 160) else gray
+	description.LeftArmColor = gray
+	description.RightArmColor = gray
+	description.LeftLegColor = Color3.fromRGB(90, 90, 100)
+	description.RightLegColor = Color3.fromRGB(90, 90, 100)
+	local model = Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R15)
+	model.Name = if blocking then "Blocking Dummy" else "Training Dummy " .. index
+	local animate = model:FindFirstChild("Animate")
+	if animate then
+		animate:Destroy()
+	end
+	local humanoid = model:FindFirstChildOfClass("Humanoid") :: Humanoid
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if animator then
+		animator:Destroy()
+	end
+	humanoid.MaxHealth = Config.Player.MaxHealth
+	humanoid.Health = Config.Player.MaxHealth
+	humanoid.WalkSpeed = 0
+	humanoid.JumpPower = 0
+	humanoid.BreakJointsOnDeath = false
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	model:PivotTo(spot)
+	model.Parent = folder
+	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart
+	root:SetNetworkOwner(nil)
+
+	local fighter = CombatService.Register(model, nil, "Dummy")
+	if not fighter then
+		return
+	end
+	fighter.InvulnUntil = 0
+	model:SetAttribute("InvulnUntil", 0)
+	model:SetAttribute("Dummy", true)
+	if blocking then
+		-- Keeps blocking whenever it isn't stunned
+		task.spawn(function()
+			while model.Parent and fighter.Alive do
+				if not CombatService.IsStunned(fighter) and fighter.KnockdownUntil < CombatService.Now() then
+					CombatService.SetBlocking(fighter, true)
+				end
+				task.wait(0.3)
+			end
+		end)
+	end
+	-- Walk back to its spot after being knocked around
+	task.spawn(function()
+		while model.Parent and fighter.Alive do
+			task.wait(2.5)
+			if fighter.Alive and not CombatService.IsStunned(fighter) and (root.Position - spot.Position).Magnitude > 6 then
+				root.AssemblyLinearVelocity = Vector3.zero
+				model:PivotTo(spot)
+			end
+		end
+	end)
+	humanoid.Died:Connect(function()
+		task.delay(Config.Arena.DummyRespawn, function()
+			model:Destroy()
+			build(spot, index, blocking)
+		end)
+	end)
+end
+
+function DummyService.Init()
+	folder = Instance.new("Folder")
+	folder.Name = "Dummies"
+	folder.Parent = workspace
+	local spots = StadiumLayout.DummySpots(Config.Arena.DummyCount)
+	for i, spot in spots do
+		task.spawn(build, spot, i, i == #spots)
+	end
+end
+
+return DummyService

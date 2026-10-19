@@ -8,27 +8,26 @@
 
 local AssetIds = {}
 
--- Meshes from blender/out/meshes/*.fbx (Studio: Asset Manager -> Bulk Import, then copy each Mesh id)
+-- Meshes from blender/out/meshes/*.obj (Studio: 3D Importer or Asset Manager -> Bulk Import, then
+-- copy each Mesh id - the MeshId, not the id of a Model wrapping it). Rebuild with blender/build_pack.py.
 AssetIds.Meshes = {
-	Ring = "", -- ring.fbx           shockwave rings
-	Crescent = "", -- crescent.fbx   slash arcs
-	Spiral = "", -- spiral.fbx       wind spirals around projectiles
-	Bolt = "", -- bolt.fbx           lightning bolt strip
-	Burst = "", -- burst.fbx         spiky impact star
-	Dome = "", -- dome.fbx           explosion shell
+	Ring = "", -- ring.obj           shockwave rings
+	Crescent = "", -- crescent.obj   slash arcs
+	Spiral = "", -- spiral.obj       wind spirals around projectiles
+	Bolt = "", -- bolt.obj           lightning strikes from the sky
+	Burst = "", -- burst.obj         anime impact star
+	Dome = "", -- dome.obj           explosion shell on the ground
 }
 
 -- Flipbook / effect textures from blender/out/textures/*.png
 AssetIds.Textures = {
-	Explosion = "", -- explosion_8x8.png (8x8 flipbook)
-	Smoke = "", -- smoke_4x4.png (4x4 flipbook)
-	Lightning = "", -- lightning_4x4.png (4x4 flipbook)
-	Spark = "", -- spark.png
-	Shockwave = "", -- shockwave.png (ring gradient)
-	Slash = "", -- slash.png (crescent gradient)
-	Impact = "", -- impact_star.png
-	Confetti = "", -- confetti.png
-	SpeedLines = "", -- speedlines.png (screen overlay)
+	Explosion = "", -- explosion_8x8.png (8x8 flipbook) fireballs in explosions
+	Smoke = "", -- smoke_4x4.png (4x4 flipbook)    smoke puffs
+	Lightning = "", -- lightning_4x4.png (4x4 flipbook) crackling electricity
+	Spark = "", -- spark.png                       spark particles
+	Shockwave = "", -- shockwave.png               ground shockwaves
+	Impact = "", -- impact_star.png                impact stars (when the Burst mesh isn't set)
+	SpeedLines = "", -- speedlines.png             screen speed lines
 }
 
 -- Sounds: an id here always wins. Empty slots are filled by the server's audio-library search

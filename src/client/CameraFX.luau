@@ -11,6 +11,9 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local AssetIds = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("AssetIds"))
 
 local CameraFX = {}
 
@@ -23,6 +26,7 @@ local cinematicActive = false
 local screen: ScreenGui
 local flashFrame: Frame
 local linesFrame: Frame
+local linesImage: ImageLabel? -- the speedlines texture, when one is set in AssetIds
 local barTop: Frame
 local barBottom: Frame
 
@@ -95,6 +99,10 @@ function CameraFX.SpeedLines(duration: number, color: Color3?)
 		if line:IsA("Frame") then
 			line.BackgroundColor3 = color or Color3.new(1, 1, 1)
 		end
+	end
+	local image = linesImage
+	if image then
+		image.ImageColor3 = color or Color3.new(1, 1, 1)
 	end
 	linesFrame:SetAttribute("Until", os.clock() + duration)
 end
@@ -178,7 +186,19 @@ function CameraFX.Init()
 	linesFrame.Visible = false
 	linesFrame.Parent = screen
 	local lines: { Frame } = {}
-	for _ = 1, 36 do
+	local linesTexture = AssetIds.Resolve(AssetIds.Textures.SpeedLines)
+	if linesTexture then
+		local image = Instance.new("ImageLabel")
+		image.AnchorPoint = Vector2.new(0.5, 0.5)
+		image.Position = UDim2.fromScale(0.5, 0.5)
+		image.Size = UDim2.fromScale(1.5, 1.5)
+		image.SizeConstraint = Enum.SizeConstraint.RelativeXX
+		image.BackgroundTransparency = 1
+		image.Image = linesTexture
+		image.Parent = linesFrame
+		linesImage = image
+	end
+	for _ = 1, if linesTexture then 0 else 36 do
 		local line = Instance.new("Frame")
 		line.AnchorPoint = Vector2.new(0.5, 0.5)
 		line.BorderSizePixel = 0
@@ -211,6 +231,12 @@ function CameraFX.Init()
 			local size = screen.AbsoluteSize
 			local cx, cy = size.X / 2, size.Y / 2
 			local radius = math.max(cx, cy)
+			local image = linesImage
+			if image then
+				-- Re-roll the texture each frame so the lines flicker like drawn frames
+				image.Rotation = math.random() * 360
+				image.ImageTransparency = math.random() * 0.25
+			end
 			for _, line in lines do
 				local a = math.random() * math.pi * 2
 				local length = radius * (0.25 + math.random() * 0.35)

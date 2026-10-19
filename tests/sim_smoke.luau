@@ -38,6 +38,15 @@ local client = world:Context("client", false, player)
 local ClientConfig = client.Require(RS:WaitForChild("Shared"):WaitForChild("Config"))
 ClientConfig.Crowd.DefaultDensity.Desktop = 0.01
 ClientConfig.Crowd.ConfettiRate = 0.5
+if process.env.SIM_ASSETS then
+	-- Pretend every Blender-pack asset is uploaded so each FX hook runs
+	local ClientAssets = client.Require(RS:WaitForChild("Shared"):WaitForChild("AssetIds"))
+	for _, group in { ClientAssets.Meshes, ClientAssets.Textures } do
+		for name in group do
+			group[name] = "1"
+		end
+	end
+end
 print("== booting client")
 client.Run(world.Services.StarterPlayer.StarterPlayerScripts:WaitForChild("Client"))
 world:Run(4)

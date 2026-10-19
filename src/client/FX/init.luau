@@ -196,6 +196,17 @@ local function ringMesh(): string?
 	return AssetIds.Resolve(AssetIds.Meshes.Ring)
 end
 
+-- A part showing one of the Blender pack's meshes (native size 1 stud; scale is in studs).
+local function meshPart(meshId: string, cf: CFrame, color: Color3, scale: Vector3, life: number, transparency: number?): (Part, SpecialMesh)
+	local p = FX.Part({ Size = Vector3.one, CFrame = cf, Color = color, Transparency = transparency, Life = life })
+	local m = Instance.new("SpecialMesh")
+	m.MeshType = Enum.MeshType.FileMesh
+	m.MeshId = meshId
+	m.Scale = scale
+	m.Parent = p
+	return p, m
+end
+
 -- A crisp expanding ring lying in cf's XZ plane, built from short neon segments (or the ring mesh).
 function FX.Ring(cf: CFrame, color: Color3, r0: number, r1: number, duration: number, width: number?, segments: number?)
 	local w = width or 0.8
@@ -251,6 +262,23 @@ function FX.Shockwave(cf: CFrame, color: Color3, radius: number, duration: numbe
 	})
 	tween(disc, d, { Size = Vector3.new(0.3, radius * 2, radius * 2), Transparency = 1 }, Enum.EasingStyle.Quart)
 	FX.Ring(cf, core or color, radius * 0.15, radius, d * 0.8, math.clamp(radius * 0.08, 0.4, 2.2))
+	local texture = AssetIds.Resolve(AssetIds.Textures.Shockwave)
+	if texture then
+		-- One particle lying flat (VelocityPerpendicular + upward emission), growing to the radius
+		FX.Emit(cf.Position, {
+			Texture = texture,
+			Color = core or color,
+			Count = 1,
+			Speed = NumberRange.new(0.01),
+			Spread = Vector2.zero,
+			Orientation = Enum.ParticleOrientation.VelocityPerpendicular,
+			Size = numberSeq(radius * 0.2, radius * 2.2),
+			Transparency = numberSeq(0, 1),
+			Lifetime = NumberRange.new(d),
+			Rotation = NumberRange.new(0, 360),
+			RotSpeed = NumberRange.new(0),
+		})
+	end
 end
 
 -- Anime impact lines: thin streaks bursting out from a point, facing the camera.
@@ -279,6 +307,7 @@ end
 function FX.Sparks(position: Vector3, color: Color3, count: number, speed: number?, size: number?)
 	local s = speed or 40
 	FX.Emit(position, {
+		Texture = AssetIds.Resolve(AssetIds.Textures.Spark),
 		Color = color,
 		Count = count,
 		Speed = NumberRange.new(s * 0.5, s),
@@ -436,6 +465,26 @@ end
 function FX.Crackle(part: BasePart, color: Color3, duration: number, radius: number?, rate: number?)
 	local r = radius or 1.5
 	local interval = 1 / (rate or 14)
+	local flipbook = AssetIds.Resolve(AssetIds.Textures.Lightning)
+	if flipbook then
+		local stopAt = os.clock() + duration
+		task.spawn(function()
+			while os.clock() < stopAt and part.Parent do
+				FX.Emit(part.Position, {
+					Texture = flipbook,
+					Flipbook = Enum.ParticleFlipbookLayout.Grid4x4,
+					Color = color,
+					Count = 1,
+					Speed = NumberRange.new(0),
+					Size = numberSeq(r * 1.6, r * 1.9),
+					Transparency = numberSeq(0, 0.2, 1),
+					Lifetime = NumberRange.new(0.12, 0.2),
+					RotSpeed = NumberRange.new(0),
+				})
+				task.wait(interval * 2)
+			end
+		end)
+	end
 	task.spawn(function()
 		local stop = os.clock() + duration
 		while os.clock() < stop and part.Parent do
@@ -518,6 +567,23 @@ end
 function FX.Spiral(cf: CFrame, color: Color3, radius: number, length: number, duration: number, strands: number?)
 	local s = strands or 3
 	local perStrand = 9
+	local spiralMesh = AssetIds.Resolve(AssetIds.Meshes.Spiral)
+	if spiralMesh then
+		local p, m = meshPart(spiralMesh, cf, color, Vector3.new(radius * 2, radius * 2, length), duration + 0.1, 0.2)
+		local start = os.clock()
+		local spinConnection
+		spinConnection = RunService.RenderStepped:Connect(function()
+			local t = (os.clock() - start) / duration
+			if t >= 1 or not p.Parent then
+				spinConnection:Disconnect()
+				return
+			end
+			p.CFrame = cf * CFrame.Angles(0, 0, t * math.pi * 6)
+			p.Transparency = 0.2 + 0.8 * t * t
+			m.Scale = Vector3.new(radius * 2, radius * 2, length) * (0.85 + 0.3 * t)
+		end)
+		return
+	end
 	local parts: { BasePart } = {}
 	for _ = 1, s * perStrand do
 		table.insert(parts, FX.Part({ Size = Vector3.new(0.18, 0.18, 1), CFrame = cf, Color = color, Transparency = 0.25, Life = duration + 0.1 }))
@@ -839,6 +905,26 @@ function FX.Impact(position: Vector3, palette: Palette, strength: number)
 	local facing = if camera then CFrame.lookAt(position, camera.CFrame.Position) * CFrame.Angles(math.pi / 2, 0, 0) else CFrame.new(position)
 	FX.Ring(facing, palette.Secondary, 0.5 * s, 3 * s, 0.22, 0.25 + 0.15 * s, 14)
 	FX.Light(position, palette.Light, 3 * s, 10 + 6 * s, 0.25)
+	-- Anime impact star
+	local burstMesh = AssetIds.Resolve(AssetIds.Meshes.Burst)
+	local starTexture = AssetIds.Resolve(AssetIds.Textures.Impact)
+	if burstMesh then
+		local toCamera = if camera then CFrame.lookAt(position, camera.CFrame.Position) else CFrame.new(position)
+		local p, m = meshPart(burstMesh, toCamera * CFrame.Angles(0, 0, math.random() * math.pi * 2), palette.Core, Vector3.one * 1.5 * s, 0.25)
+		tween(m, 0.18, { Scale = Vector3.one * 5 * s }, Enum.EasingStyle.Quart)
+		tween(p, 0.2, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	elseif starTexture then
+		FX.Emit(position, {
+			Texture = starTexture,
+			Color = palette.Core,
+			Count = 1,
+			Speed = NumberRange.new(0),
+			Size = numberSeq(1.5 * s, 5 * s),
+			Transparency = numberSeq(0, 1),
+			Lifetime = NumberRange.new(0.18),
+			RotSpeed = NumberRange.new(0),
+		})
+	end
 end
 
 export type ExplosionOptions = {
@@ -874,6 +960,29 @@ function FX.Explosion(position: Vector3, palette: Palette, size: number, options
 	end
 	local ground = groundBelow(position)
 	FX.Shockwave(CFrame.new(Vector3.new(position.X, ground.Y + 0.2, position.Z)), palette.Primary, size * 1.8, 0.55, palette.Core)
+	local flipbook = AssetIds.Resolve(AssetIds.Textures.Explosion)
+	if flipbook then
+		FX.Emit(position, {
+			Texture = flipbook,
+			Flipbook = Enum.ParticleFlipbookLayout.Grid8x8,
+			Color = palette.Secondary,
+			Color2 = palette.Dark,
+			Count = 3,
+			Speed = NumberRange.new(size * 0.3, size * 0.8),
+			Size = numberSeq(size * 1.2, size * 1.8),
+			Transparency = numberSeq(0, 0, 0.3),
+			Lifetime = NumberRange.new(0.7, 0.9),
+			RotSpeed = NumberRange.new(-30, 30),
+		})
+	end
+	local domeMesh = AssetIds.Resolve(AssetIds.Meshes.Dome)
+	if domeMesh and (position.Y - ground.Y) < size then
+		local base = CFrame.new(Vector3.new(position.X, ground.Y, position.Z))
+		local p, m = meshPart(domeMesh, base, palette.Primary, Vector3.one * size * 0.6, 0.6, 0.15)
+		p.Material = Enum.Material.ForceField
+		tween(m, 0.5, { Scale = Vector3.one * size * 2.6 }, Enum.EasingStyle.Quart)
+		tween(p, 0.5, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	end
 	FX.ImpactLines(position, palette.Core, 16, size * 1.4, 0.22)
 	FX.Sparks(position, palette.Accent, 40, size * 6, 0.9)
 	FX.Light(position, palette.Light, 8, size * 4, 0.6)
@@ -903,6 +1012,14 @@ function FX.Thunderbolt(position: Vector3, palette: Palette, size: number)
 	local top = ground + Vector3.new((math.random() - 0.5) * 8, 140, (math.random() - 0.5) * 8)
 	FX.Lightning(top, ground, palette.Primary, { Thickness = size * 0.35, Jag = size * 1.2, Detail = 4, Duration = 0.35, Flickers = 3, Branches = 3, Core = palette.Core })
 	FX.Beam(top, ground, palette.Accent, size * 0.6, 0.25, palette.Core)
+	local boltMesh = AssetIds.Resolve(AssetIds.Meshes.Bolt)
+	if boltMesh then
+		local height = (top - ground).Magnitude
+		local mid = CFrame.lookAt((top + ground) / 2, ground) * CFrame.Angles(math.pi / 2, 0, 0)
+		local p, m = meshPart(boltMesh, mid, palette.Core, Vector3.new(size * 2, height, size * 2), 0.35)
+		tween(m, 0.3, { Scale = Vector3.new(size * 0.6, height, size * 0.6) }, Enum.EasingStyle.Quad)
+		tween(p, 0.3, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	end
 	FX.Flash(ground, palette.Core, size * 2.5, 0.2)
 	FX.Shockwave(CFrame.new(ground + Vector3.new(0, 0.2, 0)), palette.Primary, size * 2.2, 0.5, palette.Core)
 	FX.Sparks(ground, palette.Accent, 30, size * 8, 0.8)

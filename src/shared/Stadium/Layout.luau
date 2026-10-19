@@ -160,6 +160,30 @@ function Layout.SideOf(position: Vector3): string
 end
 
 -- A random point on the pitch to spawn at (feet on the ground, y = HumanoidRootPart height).
+-- How far `position` is inside the barrier's rounded rectangle (studs, negative = outside), and the
+-- outward normal of the nearest stretch of wall. Movement uses these to stop at the edge of the arena.
+function Layout.InsideDistance(position: Vector3): number
+	local r = Layout.CORNER_RADIUS
+	local qx = math.abs(position.X) - (Layout.BARRIER_HALF_X - r)
+	local qz = math.abs(position.Z) - (Layout.BARRIER_HALF_Z - r)
+	local outside = math.sqrt(math.max(qx, 0) ^ 2 + math.max(qz, 0) ^ 2) + math.min(math.max(qx, qz), 0) - r
+	return -outside
+end
+
+function Layout.WallNormal(position: Vector3): Vector3
+	local r = Layout.CORNER_RADIUS
+	local sx = if position.X < 0 then -1 else 1
+	local sz = if position.Z < 0 then -1 else 1
+	local qx = math.abs(position.X) - (Layout.BARRIER_HALF_X - r)
+	local qz = math.abs(position.Z) - (Layout.BARRIER_HALF_Z - r)
+	if qx > 0 and qz > 0 then
+		return Vector3.new(qx * sx, 0, qz * sz).Unit
+	elseif qx > qz then
+		return Vector3.new(sx, 0, 0)
+	end
+	return Vector3.new(0, 0, sz)
+end
+
 function Layout.RandomSpawn(rng: Random): Vector3
 	local x = rng:NextNumber(-Layout.PITCH_HALF_X + 20, Layout.PITCH_HALF_X - 20)
 	local z = rng:NextNumber(-Layout.PITCH_HALF_Z + 15, Layout.PITCH_HALF_Z - 15)

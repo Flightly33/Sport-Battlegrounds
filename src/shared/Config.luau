@@ -55,8 +55,24 @@ Config.Block = {
 Config.Dash = {
 	Cooldown = 2.2, -- side / back dash
 	FrontCooldown = 3.5,
-	Speed = 78,
-	Duration = 0.22,
+	Distance = 24, -- studs covered by a forward dash
+	SideDistance = 19,
+	BackDistance = 18,
+	Duration = 0.28, -- seconds
+	-- Speed curve (see Client/Motion): starts at StartSpeed x the peak, reaches the peak over the first
+	-- EaseIn of the dash, holds, then eases down to EndSpeed x the peak over the last EaseOut.
+	StartSpeed = 0.45,
+	EaseIn = 0.18,
+	EaseOut = 0.4,
+	EndSpeed = 0.18,
+	Carry = 0.3, -- share of the final speed kept after the dash, so it doesn't stop dead
+}
+
+-- Dashes, lunges, leaps and slides (Client/Motion).
+Config.Motion = {
+	Force = 1e6, -- LinearVelocity force per axis; much below ~1e4 a Humanoid shrugs it off
+	WallMargin = 2.2, -- studs kept between a moving character and the arena wall
+	BodyRadius = 1.3, -- wall checks reach this far past the next step
 }
 
 Config.Evasive = {

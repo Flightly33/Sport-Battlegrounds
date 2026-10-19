@@ -20,18 +20,20 @@ local function dash(ctx: Ctx)
 	local look = root.CFrame.LookVector
 	local right = root.CFrame.RightVector
 	local v = ctx.Variant
-	local dir, clip
+	local dash = Config.Dash
+	local dir, clip, distance
 	if v == "B" then
-		dir, clip = -look, Clips.Common.DashBack
+		dir, clip, distance = -look, Clips.Common.DashBack, dash.BackDistance
 	elseif v == "L" then
-		dir, clip = -right, Clips.Common.DashLeft
+		dir, clip, distance = -right, Clips.Common.DashLeft, dash.SideDistance
 	elseif v == "R" then
-		dir, clip = right, Clips.Common.DashRight
+		dir, clip, distance = right, Clips.Common.DashRight, dash.SideDistance
 	else
-		dir, clip = look, Clips.Common.DashFront
+		dir, clip, distance = look, Clips.Common.DashFront, dash.Distance
 	end
 	ctx:Play(clip)
-	ctx:Velocity(dir * Config.Dash.Speed, Config.Dash.Duration)
+	-- Eased dash (snappy start, soft stop), stopped by walls and the arena edge - see Client/Motion
+	ctx:Dash(dir, distance, dash.Duration, dash.Carry)
 	local feet = root.Position - Vector3.new(0, 2.6, 0)
 	FX.Afterimage(ctx.Character, ctx.Palette.Primary, 0.22, Enum.Material.ForceField)
 	FX.Smoke(feet, Color3.fromRGB(200, 195, 185), 6, 1.2, 0.6, 2)

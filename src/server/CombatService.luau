@@ -17,6 +17,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
 local Characters = require(Shared.Characters)
+local Rig = require(Shared.Anim.Rig)
 local Remotes = require(Shared.Remotes)
 local Signal = require(Shared.Signal)
 
@@ -261,13 +262,9 @@ local function applyVelocity(fighter: Fighter, velocity: Vector3, duration: numb
 	end
 	-- Dummies are simulated by the server
 	local root = fighter.Root
-	local attachment = root:FindFirstChild("RootAttachment") :: Attachment?
-	if not attachment then
-		return
-	end
 	local lv = Instance.new("LinearVelocity")
 	lv.Name = "SB_Knockback"
-	lv.Attachment0 = attachment
+	lv.Attachment0 = Rig.MotionAttachment(root)
 	lv.MaxForce = math.huge
 	lv.VectorVelocity = velocity
 	lv.RelativeTo = Enum.ActuatorRelativeTo.World

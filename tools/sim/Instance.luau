@@ -129,6 +129,9 @@ end
 local EXTRA_DEFAULTS: { [string]: { [string]: any } } = {
 	Humanoid = { Health = 100, MaxHealth = 100, WalkSpeed = 16, JumpPower = 50, HipHeight = 2 },
 	BasePart = { AssemblyLinearVelocity = Vector3.zero, LocalTransparencyModifier = 0 },
+	-- Joints start at their rest pose
+	Motor6D = { Transform = CFrame.identity },
+	AnimationConstraint = { Transform = CFrame.identity, IsKinematic = true },
 }
 
 --------------------------------------------------------------------------------

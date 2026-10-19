@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared.Config)
+local Rig = require(Shared.Anim.Rig)
 local StadiumLayout = require(Shared.Stadium.Layout)
 
 local CombatService = require(script.Parent.CombatService)
@@ -55,6 +56,7 @@ local function build(spot: CFrame, index: number, kind: string)
 	humanoid.BreakJointsOnDeath = false
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	Rig.Prepare(model)
 	model:PivotTo(spot)
 	model.Parent = folder
 	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart

@@ -78,6 +78,8 @@ function World.new(root: string)
 	self.Time = 0
 	self.Contexts = {}
 	self.ClientPlayer = nil
+	self.InputMove = Vector3.zero -- the local player's movement input (Humanoid.MoveDirection)
+	self.FrameHooks = {} :: { (number) -> () } -- called after every frame (tests sample state here)
 	self.Parts = {} :: { [any]: boolean }
 	self.Velocities = {} :: { [any]: boolean }
 	self.Welds = {} :: { [any]: boolean }
@@ -254,8 +256,39 @@ function World:InstallHooks()
 			return new
 		end,
 	}
+	-- C0 / C1 / Part0 / Part1 on an AnimationConstraint are read-only aliases of its attachments
+	Sim.Getters.AnimationConstraint = {
+		C0 = function(j)
+			local a = j.Attachment0
+			return if a then a.CFrame else CFrame.identity
+		end,
+		C1 = function(j)
+			local a = j.Attachment1
+			return if a then a.CFrame else CFrame.identity
+		end,
+		Part0 = function(j)
+			local a = j.Attachment0
+			return a and a.Parent
+		end,
+		Part1 = function(j)
+			local a = j.Attachment1
+			return a and a.Parent
+		end,
+	}
+	local function readOnly(name)
+		return function()
+			error("Unable to assign property " .. name .. ". Property is read only", 3)
+		end
+	end
+	Sim.Setters.AnimationConstraint = { C0 = readOnly("C0"), C1 = readOnly("C1"), Part0 = readOnly("Part0"), Part1 = readOnly("Part1") }
 	Sim.Getters.Humanoid = {
-		MoveDirection = function(_h)
+		-- The local player's movement input (tests set world.InputMove to steer dashes)
+		MoveDirection = function(h)
+			local player = world.ClientPlayer
+			local character = player and player.Character
+			if character and Sim.States[h].Parent == character then
+				return world.InputMove
+			end
 			return Vector3.zero
 		end,
 		FloorMaterial = function(_h)
@@ -518,6 +551,19 @@ end
 --------------------------------------------------------------------------------
 -- Characters
 --------------------------------------------------------------------------------
+-- Which joints characters get: "constraint" (default) matches current Roblox R15 avatars, built with
+-- AnimationConstraints between rig attachments and no RootAttachment on the root part; "motor6d" is
+-- the legacy rig (Motor6Ds, plus a RootAttachment).
+World.RigKind = "constraint"
+
+local function rawAttachment(name: string, parent: any, cf: any): any
+	local a = Sim.Raw("Attachment")
+	Sim.States[a].Name = name
+	a.CFrame = cf
+	a.Parent = parent
+	return a
+end
+
 function World:BuildRig(): any
 	local model = Sim.Raw("Model")
 	Sim.States[model].Name = "Character"
@@ -529,9 +575,10 @@ function World:BuildRig(): any
 	root.CFrame = CFrame.new(0, 3, 0)
 	root.Parent = model
 	parts.HumanoidRootPart = root
-	local attachment = Sim.Raw("Attachment")
-	Sim.States[attachment].Name = "RootAttachment"
-	attachment.Parent = root
+	local legacy = World.RigKind == "motor6d"
+	if legacy then
+		rawAttachment("RootAttachment", root, CFrame.identity)
+	end
 	for _, j in RIG do
 		local name, p0, p1, c0, c1, size = j[1], j[2], j[3], j[4], j[5], j[6]
 		local part = Sim.Raw("MeshPart")
@@ -540,13 +587,23 @@ function World:BuildRig(): any
 		part.CFrame = parts[p0].CFrame * c0 * c1:Inverse()
 		part.Parent = model
 		parts[p1] = part
-		local motor = Sim.Raw("Motor6D")
-		Sim.States[motor].Name = name
-		motor.Part0 = parts[p0]
-		motor.Part1 = part
-		motor.C0 = c0
-		motor.C1 = c1
-		motor.Parent = part
+		if legacy then
+			local motor = Sim.Raw("Motor6D")
+			Sim.States[motor].Name = name
+			motor.Part0 = parts[p0]
+			motor.Part1 = part
+			motor.C0 = c0
+			motor.C1 = c1
+			motor.Parent = part
+		else
+			local a0 = rawAttachment(name .. "RigAttachment", parts[p0], c0)
+			local a1 = rawAttachment(name .. "RigAttachment", part, c1)
+			local joint = Sim.Raw("AnimationConstraint")
+			Sim.States[joint].Name = name
+			joint.Attachment0 = a0
+			joint.Attachment1 = a1
+			joint.Parent = part
+		end
 	end
 	local humanoid = Sim.Raw("Humanoid")
 	Sim.States[humanoid].Name = "Humanoid"
@@ -916,16 +973,72 @@ local function assemblyOf(part)
 	return model
 end
 
+-- Force a LinearVelocity needs to beat a character's Humanoid controller. Weaker constraints are
+-- overpowered in a real game, so here they do nothing at all.
+World.StrongForce = 1e4
+
+local Enum = roblox.Enum
+
+-- What a LinearVelocity drives, like the real constraint: the target velocity and which world axes
+-- it actually controls (1) or leaves alone (0), or nil if it can't act at all.
+local function linearDrive(lv): (any, any)
+	if lv.Enabled == false then
+		return nil, nil
+	end
+	local a = lv.Attachment0
+	if not a or not Sim.IsInstance(a) or Sim.States[a].Destroyed then
+		return nil, nil
+	end
+	local part = a.Parent
+	if not part or not Sim.IsInstance(part) or not part:IsA("BasePart") then
+		return nil, nil
+	end
+	local world = part.CFrame * a.CFrame
+	local frame = if lv.RelativeTo == Enum.ActuatorRelativeTo.Attachment0 then world - world.Position else CFrame.identity
+	local mode = lv.VelocityConstraintMode
+	local velocity, mask
+	local function axesOf(...)
+		local m = Vector3.zero
+		for _, d in { ... } do
+			m = Vector3.new(math.max(m.X, if math.abs(d.X) > 0.01 then 1 else 0), math.max(m.Y, if math.abs(d.Y) > 0.01 then 1 else 0), math.max(m.Z, if math.abs(d.Z) > 0.01 then 1 else 0))
+		end
+		return m
+	end
+	if mode == Enum.VelocityConstraintMode.Line then
+		local dir = frame:VectorToWorldSpace(lv.LineDirection.Unit)
+		velocity = dir * lv.LineVelocity
+		mask = axesOf(dir)
+	elseif mode == Enum.VelocityConstraintMode.Plane then
+		local t1 = frame:VectorToWorldSpace(lv.PrimaryTangentAxis.Unit)
+		local t2 = frame:VectorToWorldSpace(lv.SecondaryTangentAxis.Unit)
+		velocity = t1 * lv.PlaneVelocity.X + t2 * lv.PlaneVelocity.Y
+		mask = axesOf(t1, t2)
+	else
+		velocity = frame:VectorToWorldSpace(lv.VectorVelocity)
+		mask = Vector3.one
+	end
+	if lv.ForceLimitsEnabled ~= false then
+		local strong = World.StrongForce
+		if lv.ForceLimitMode == Enum.ForceLimitMode.PerAxis then
+			local f = lv.MaxAxesForce
+			mask = mask * Vector3.new(if f.X >= strong then 1 else 0, if f.Y >= strong then 1 else 0, if f.Z >= strong then 1 else 0)
+		elseif lv.MaxForce < strong then
+			return nil, nil
+		end
+	end
+	return velocity, mask
+end
+
 function World:Physics(dt: number)
 	local driven: { [any]: any } = {}
 	for _, lv in Sim.Ordered(self.Velocities) do
 		local st = Sim.States[lv]
-		if not st.Destroyed and lv.Enabled ~= false then
-			local a = lv.Attachment0
-			local part = a and a.Parent
-			if part and Sim.IsInstance(part) and part:IsA("BasePart") then
+		if not st.Destroyed then
+			local velocity, mask = linearDrive(lv)
+			if velocity then
+				local part = lv.Attachment0.Parent
 				local model = assemblyOf(part)
-				driven[model or part] = lv.VectorVelocity
+				driven[model or part] = { Velocity = velocity, Mask = mask }
 			end
 		end
 	end
@@ -936,14 +1049,19 @@ function World:Physics(dt: number)
 			for _, model in folder:GetChildren() do
 				local root = model:FindFirstChild("HumanoidRootPart")
 				if root then
-					local v = driven[model]
+					local drive = driven[model]
 					local cf = root.CFrame
 					local vy = self.Vertical[model] or 0
-					if v then
-						vy = v.Y
+					if drive then
+						-- Driven axes follow the constraint; free horizontal axes are held by the
+						-- Humanoid (no walking input here) and a free vertical axis falls
+						local d, m = drive.Velocity, drive.Mask
+						vy = if m.Y > 0 then d.Y else vy - GRAVITY * dt
+						local v = Vector3.new(if m.X > 0 then d.X else 0, vy, if m.Z > 0 then d.Z else 0)
 						local moved = cf + v * dt
 						if moved.Position.Y < 3 then
 							moved = moved + Vector3.new(0, 3 - moved.Position.Y, 0)
+							vy = math.max(vy, 0)
 						end
 						model:PivotTo(moved)
 						root.AssemblyLinearVelocity = v
@@ -974,8 +1092,25 @@ function World:Physics(dt: number)
 	end
 end
 
+-- The default camera: behind and above the local character (unless a script took the camera over).
+function World:FollowCamera()
+	local player = self.ClientPlayer
+	local character = player and player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local camera = self.Camera
+	if not root or not camera or camera.CameraType == roblox.Enum.CameraType.Scriptable then
+		return
+	end
+	local look = root.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	flat = if flat.Magnitude > 1e-3 then flat.Unit else Vector3.new(0, 0, -1)
+	local target = root.Position + Vector3.new(0, 1.5, 0)
+	camera.CFrame = CFrame.lookAt(target - flat * 14 + Vector3.new(0, 5, 0), target)
+end
+
 function World:Step(dt: number)
 	self.Time += dt
+	self:FollowCamera()
 	local rs = self.Services.RunService
 	Sim.Signal(rs, "RenderStepped"):FireSync(dt)
 	Sim.Signal(rs, "PreAnimation"):FireSync(dt)
@@ -997,6 +1132,9 @@ function World:Run(seconds: number)
 		Clock.Flush()
 		self:Step(World.FrameTime)
 		Clock.Flush()
+		for _, hook in self.FrameHooks do
+			hook(World.FrameTime)
+		end
 		if World.Digest then
 			self.Frame = (self.Frame or 0) + 1
 			local parts = { string.format("[digest] %d t=%.4f", self.Frame, Clock.Now) }

@@ -20,6 +20,7 @@ local Config = require(Shared.Config)
 local Remotes = require(Shared.Remotes)
 local Signal = require(Shared.Signal)
 local Clips = require(Shared.Anim.Clips)
+local Rig = require(Shared.Anim.Rig)
 
 local Animator = require(script.Parent.Animator)
 local MoveRunner = require(script.Parent.MoveRunner)
@@ -281,13 +282,9 @@ local function onKnockback(velocity: Vector3, duration: number, _knockdown: numb
 	if knockbackVelocity then
 		knockbackVelocity:Destroy()
 	end
-	local attachment = root:FindFirstChild("RootAttachment") :: Attachment?
-	if not attachment then
-		return
-	end
 	local lv = Instance.new("LinearVelocity")
 	lv.Name = "SB_Knockback"
-	lv.Attachment0 = attachment
+	lv.Attachment0 = Rig.MotionAttachment(root)
 	lv.MaxForce = 1e7
 	lv.VectorVelocity = velocity
 	lv.RelativeTo = Enum.ActuatorRelativeTo.World

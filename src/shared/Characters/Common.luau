@@ -7,6 +7,7 @@
 ]]
 
 local Types = require(script.Parent.Types)
+local Config = require(script.Parent.Parent.Config)
 
 type Move = Types.Move
 type Hit = Types.Hit
@@ -89,16 +90,16 @@ local function dash(id: string, cooldown: number): Move
 		Slot = "Dash",
 		Description = "Dash in the direction you're moving.",
 		Cooldown = cooldown,
-		Busy = 0.28,
+		Busy = Config.Dash.Duration,
 		MaxTime = 0,
 		Aerial = true,
 		Hits = {},
 	}
 end
 
-Common.DashFront = dash("Dash_Front", 3.5)
-Common.DashSide = dash("Dash_Side", 2.2)
-Common.DashBack = dash("Dash_Back", 2.2)
+Common.DashFront = dash("Dash_Front", Config.Dash.FrontCooldown)
+Common.DashSide = dash("Dash_Side", Config.Dash.Cooldown)
+Common.DashBack = dash("Dash_Back", Config.Dash.Cooldown)
 
 Common.Evasive = {
 	Id = "Evasive",

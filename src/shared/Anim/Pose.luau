@@ -10,6 +10,10 @@
 	channels; a channel missing from one key is at rest (0) in that key. Joints that are in no key at
 	all are left to the layer underneath (so an arm-only clip doesn't touch the legs).
 
+	Marks name the moments gameplay hangs off (seconds into the clip): Plant, Contact, Release...
+	Move scripts wait for a track to reach a mark (MoveRunner ctx:Until), so the ball leaves the foot,
+	the hitbox opens and the sound plays on that exact frame - through hit-stop and slow motion too.
+
 	Each layer is resolved to CFrames (IK solved) and layers are blended with CFrame:Lerp.
 ]]
 
@@ -32,6 +36,7 @@ export type Clip = {
 	Raw: { string }, -- authored channel names (incl. RFoot/LFoot)
 	FadeIn: number,
 	FadeOut: number,
+	Marks: { [string]: number },
 }
 export type Resolved = { [string]: CFrame }
 
@@ -84,7 +89,7 @@ Pose.Ease = EASE
 --------------------------------------------------------------------------------
 -- Clips
 --------------------------------------------------------------------------------
-export type ClipOptions = { Loop: boolean?, FadeIn: number?, FadeOut: number? }
+export type ClipOptions = { Loop: boolean?, FadeIn: number?, FadeOut: number?, Marks: { [string]: number }? }
 
 -- Pose.Clip("Name", { Loop = true }, { { 0, poseA }, { 0.2, poseB, "Out" }, ... })
 function Pose.Clip(name: string, options: ClipOptions, keys: { { any } }): Clip
@@ -129,6 +134,7 @@ function Pose.Clip(name: string, options: ClipOptions, keys: { { any } }): Clip
 		Raw = rawList,
 		FadeIn = options.FadeIn or 0.07,
 		FadeOut = options.FadeOut or 0.15,
+		Marks = options.Marks or {},
 	}
 end
 
@@ -314,7 +320,7 @@ function Pose.MirrorClip(clip: Clip, name: string): Clip
 		local entry: { any } = { k.T, Pose.Mirror(k.Pose), k.Ease }
 		table.insert(keys, entry)
 	end
-	return Pose.Clip(name, { Loop = clip.Loop, FadeIn = clip.FadeIn, FadeOut = clip.FadeOut }, keys)
+	return Pose.Clip(name, { Loop = clip.Loop, FadeIn = clip.FadeIn, FadeOut = clip.FadeOut, Marks = table.clone(clip.Marks) }, keys)
 end
 
 -- Merges poses left to right (later wins) - for building keys from shared pieces.

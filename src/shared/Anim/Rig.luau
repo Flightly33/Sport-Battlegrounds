@@ -7,9 +7,17 @@
 	rig attachments, so every Transform is conjugated by the joint's C0 rotation:
 		Part1 = Part0 * C0 * (Q0^-1 * R * Q0) * C1^-1  ==  Part0 * P0 * R * (rest)
 	which makes the same pose look the same on every body.
+
+	Current Roblox avatars are jointed with AnimationConstraints (an AnimationConstraint's C0 / C1 are
+	its two attachments); older rigs and the props use Motor6Ds. Both are read the same way and both
+	take their pose through .Transform.
 ]]
 
 local Rig = {}
+
+-- Name of the attachment on the HumanoidRootPart that dashes, lunges and knockback push on. Ours,
+-- so movement never depends on which attachments an avatar happens to come with.
+Rig.MOTION_ATTACHMENT = "SB_Motion"
 
 export type JointInfo = {
 	Name: string,
@@ -19,7 +27,8 @@ export type JointInfo = {
 	C1: CFrame,
 	Q0: CFrame,
 	Q0Inv: CFrame,
-	Motor: Motor6D?,
+	Motor: Motor6D?, -- whichever drives the joint: a Motor6D...
+	Constraint: AnimationConstraint?, -- ...or an AnimationConstraint
 }
 
 export type RigInfo = {
@@ -58,7 +67,7 @@ local function rotationOf(cf: CFrame): CFrame
 	return cf - cf.Position
 end
 
-local function makeJoint(name: string, part0: string, part1: string, c0: CFrame, c1: CFrame, motor: Motor6D?): JointInfo
+local function makeJoint(name: string, part0: string, part1: string, c0: CFrame, c1: CFrame, motor: Motor6D?, constraint: AnimationConstraint?): JointInfo
 	local q0 = rotationOf(c0)
 	return {
 		Name = name,
@@ -69,7 +78,54 @@ local function makeJoint(name: string, part0: string, part1: string, c0: CFrame,
 		Q0 = q0,
 		Q0Inv = q0:Inverse(),
 		Motor = motor,
+		Constraint = constraint,
 	}
+end
+
+local function isJoint(x: Instance): boolean
+	return x:IsA("AnimationConstraint") or x:IsA("Motor6D")
+end
+Rig.IsJoint = isJoint
+
+-- Part0, Part1, C0, C1 of either kind of joint.
+local function jointFrames(joint: Instance): (BasePart?, BasePart?, CFrame, CFrame)
+	if joint:IsA("Motor6D") then
+		return joint.Part0, joint.Part1, joint.C0, joint.C1
+	elseif joint:IsA("AnimationConstraint") then
+		local a0, a1 = joint.Attachment0, joint.Attachment1
+		if a0 and a1 then
+			local p0, p1 = a0.Parent, a1.Parent
+			if p0 and p1 and p0:IsA("BasePart") and p1:IsA("BasePart") then
+				return p0, p1, a0.CFrame, a1.CFrame
+			end
+		end
+	end
+	return nil, nil, CFrame.identity, CFrame.identity
+end
+
+-- The joint that drives `part1`: normally inside it and named after the joint; failing that, any
+-- joint in the character whose Part1 it is (AnimationConstraints first, as Roblox recommends).
+local function findJoint(character: Instance, part1: BasePart, name: string): Instance?
+	local direct = part1:FindFirstChild(name)
+	if direct and isJoint(direct) then
+		local _, p1 = jointFrames(direct)
+		if p1 == part1 then
+			return direct
+		end
+	end
+	local fallback: Instance? = nil
+	for _, d in character:GetDescendants() do
+		if isJoint(d) then
+			local _, p1 = jointFrames(d)
+			if p1 == part1 then
+				if d:IsA("AnimationConstraint") then
+					return d
+				end
+				fallback = fallback or d
+			end
+		end
+	end
+	return fallback
 end
 
 -- Leg lengths, hip pivots and rest ankle positions, computed from the joints.
@@ -113,11 +169,16 @@ function Rig.FromCharacter(character: Model): RigInfo?
 	for _, def in Rig.JOINTS do
 		local name, part1Name, motorName = def[1], def[2], def[3]
 		local part1 = character:FindFirstChild(part1Name, name == "Prop")
-		if part1 then
-			local motor = part1:FindFirstChild(motorName)
-			if motor and motor:IsA("Motor6D") and motor.Part0 then
-				joints[name] = makeJoint(name, motor.Part0.Name, part1.Name, motor.C0, motor.C1, motor)
-				table.insert(order, name)
+		if part1 and part1:IsA("BasePart") then
+			local joint = findJoint(character, part1, motorName)
+			if joint then
+				local part0, _, c0, c1 = jointFrames(joint)
+				if part0 then
+					local motor = if joint:IsA("Motor6D") then joint else nil
+					local constraint = if joint:IsA("AnimationConstraint") then joint else nil
+					joints[name] = makeJoint(name, part0.Name, part1.Name, c0, c1, motor, constraint)
+					table.insert(order, name)
+				end
 			end
 		end
 	end
@@ -152,6 +213,45 @@ end
 -- Turns a pose rotation/offset (in the parent's frame) into the Motor6D.Transform for that joint.
 function Rig.ToTransform(joint: JointInfo, local_: CFrame): CFrame
 	return joint.Q0Inv * local_ * joint.Q0
+end
+
+-- Writes a joint's Transform, whichever kind of joint it is.
+function Rig.SetTransform(joint: JointInfo, transform: CFrame)
+	local constraint = joint.Constraint
+	if constraint then
+		constraint.Transform = transform
+		return
+	end
+	local motor = joint.Motor
+	if motor then
+		motor.Transform = transform
+	end
+end
+
+-- The attachment movement pushes on (created if the avatar doesn't have it yet).
+function Rig.MotionAttachment(root: BasePart): Attachment
+	local existing = root:FindFirstChild(Rig.MOTION_ATTACHMENT)
+	if existing and existing:IsA("Attachment") then
+		return existing
+	end
+	local attachment = Instance.new("Attachment")
+	attachment.Name = Rig.MOTION_ATTACHMENT
+	attachment.Parent = root
+	return attachment
+end
+
+-- Server, on spawn: joints follow the animator exactly (kinematic) and the root gets its motion
+-- attachment before the character replicates, so every client sees the same one.
+function Rig.Prepare(character: Model)
+	for _, d in character:GetDescendants() do
+		if d:IsA("AnimationConstraint") then
+			d.IsKinematic = true
+		end
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		Rig.MotionAttachment(root)
+	end
 end
 
 -- Forward kinematics (previewer and debug): world CFrame of every part given the root's CFrame.

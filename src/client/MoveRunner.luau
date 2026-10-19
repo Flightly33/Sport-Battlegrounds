@@ -9,11 +9,14 @@
 	            character's movement arrives through normal physics replication)
 	Impact effects play when the server confirms a hit (HitConfirmed), on every client.
 
-	A move script is a function(ctx). ctx:Wait() returns false once the move was interrupted, so
-	scripts read like timelines:
-		ctx:Play(Clips.Soccer.LightKick)
-		if not ctx:Wait(0.15) then return end
+	A move script is a function(ctx). ctx:Until() / ctx:Wait() return false once the move was
+	interrupted, so scripts read like timelines. Gameplay hangs off the animation's own marks, so the
+	ball leaves the foot on the contact frame even through hit-stop or slow motion:
+		local kick = ctx:Play(Clips.Soccer.LightKick)
+		if not ctx:Until(kick, "Contact") then return end
 		ctx:Projectile({ ... })
+	Movement goes through Client/Motion (ctx:Dash / Push / Velocity / Forward / Teleport): eased,
+	stopped by walls, kept inside the arena.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -30,6 +33,7 @@ local Remotes = require(Shared.Remotes)
 
 local Animator = require(script.Parent.Animator)
 local FX = require(script.Parent.FX)
+local Motion = require(script.Parent.Motion)
 
 type Move = Characters.Move
 type Palette = Characters.Palette
@@ -93,9 +97,13 @@ export type Ctx = {
 	Cleanup: { () -> () },
 	Projectiles: { Projectile },
 	Counter: (() -> ())?,
+	Late: number, -- observers: how late MoveStarted arrived (the first clip skips ahead by this)
 	Alive: (self: Ctx) -> boolean,
 	Wait: (self: Ctx, seconds: number) -> boolean,
+	Until: (self: Ctx, track: Animator.Track?, mark: string) -> boolean,
 	Play: (self: Ctx, clip: Pose.Clip, options: Animator.PlayOptions?) -> Animator.Track?,
+	Push: (self: Ctx, spec: Motion.PushSpec) -> LinearVelocity?,
+	Dash: (self: Ctx, direction: Vector3, distance: number, duration: number, carry: number?) -> LinearVelocity?,
 	Velocity: (self: Ctx, velocity: Vector3, duration: number) -> LinearVelocity?,
 	Forward: (self: Ctx, speed: number, duration: number, up: number?) -> LinearVelocity?,
 	Teleport: (self: Ctx, cf: CFrame) -> (),
@@ -247,6 +255,7 @@ local function newCtx(character: Model, move: Move, token: number, aim: Vector3,
 		Cleanup = {},
 		Projectiles = {},
 		Counter = nil,
+		Late = 0,
 	} :: any
 
 	function ctx.Alive(self: Ctx): boolean
@@ -263,51 +272,75 @@ local function newCtx(character: Model, move: Move, token: number, aim: Vector3,
 	function ctx.Play(self: Ctx, clip: Pose.Clip, options: Animator.PlayOptions?): Animator.Track?
 		local track = Animator.Play(self.Character, clip, options)
 		if track then
+			if self.Late > 0 then
+				-- A late observer joins the first clip where the owner already is
+				track.Time = math.min(self.Late, clip.Length)
+				self.Late = 0
+			end
 			table.insert(self.Tracks, track)
 		end
 		return track
 	end
 
-	function ctx.Velocity(self: Ctx, velocity: Vector3, duration: number): LinearVelocity?
+	-- Waits until `track` reaches its clip's mark `mark` (animation time: it pauses through
+	-- hit-stop and stretches with slow motion). Returns false if the move was interrupted.
+	function ctx.Until(self: Ctx, track: Animator.Track?, mark: string): boolean
+		local at = if track then track.Clip.Marks[mark] else nil
+		if not track or not at then
+			warn("[MoveRunner] no mark", mark, "on", if track then track.Clip.Name else "(no track)", "for", self.Move.Id)
+			return self:Alive()
+		end
+		local speed = math.max(track.Speed, 0.05)
+		if not track.Registered then
+			-- Nothing advances this track here: fall back to wall-clock time
+			return self:Wait((at - track.Time) / speed)
+		end
+		-- Safety net in case the animator stops updating the track
+		local deadline = os.clock() + (at - track.Time) / speed + 1.5
+		while track.Time < at and not track.Stopped and os.clock() < deadline do
+			if not self:Alive() then
+				return false
+			end
+			task.wait()
+		end
+		return self:Alive()
+	end
+
+	-- Movement (owner only: everyone else sees it through physics replication).
+	function ctx.Push(self: Ctx, spec: Motion.PushSpec): LinearVelocity?
 		if not self.IsOwner then
 			return nil
 		end
-		local attachment = self.Root:FindFirstChild("RootAttachment") :: Attachment?
-		if not attachment then
-			return nil
-		end
-		-- Only one move velocity at a time
-		for _, old in self.Root:GetChildren() do
-			if old.Name == "SB_MoveVelocity" then
-				old:Destroy()
-			end
-		end
-		local lv = Instance.new("LinearVelocity")
-		lv.Name = "SB_MoveVelocity"
-		lv.Attachment0 = attachment
-		lv.MaxForce = 1e7
-		lv.VectorVelocity = velocity
-		lv.RelativeTo = Enum.ActuatorRelativeTo.World
-		lv.Parent = self.Root
+		local lv = Motion.Push(self.Root, spec)
 		self:Keep(lv)
-		task.delay(duration, function()
-			lv:Destroy()
-		end)
 		return lv
 	end
 
+	-- A dash along `direction`: eased in and out, `distance` studs over `duration` seconds.
+	function ctx.Dash(self: Ctx, direction: Vector3, distance: number, duration: number, carry: number?): LinearVelocity?
+		return self:Push({ Direction = direction, Distance = distance, Duration = duration, Profile = "Dash", Carry = carry })
+	end
+
+	-- Holds a constant world velocity (vertical included) for `duration` seconds.
+	function ctx.Velocity(self: Ctx, velocity: Vector3, duration: number): LinearVelocity?
+		return self:Push({ Velocity = velocity, Duration = duration })
+	end
+
+	-- A lunge along the aim: covers speed x duration studs, front-loaded so it bursts then bleeds off.
 	function ctx.Forward(self: Ctx, speed: number, duration: number, up: number?): LinearVelocity?
 		local flat = Vector3.new(self.Aim.X, 0, self.Aim.Z)
 		flat = if flat.Magnitude > 1e-3 then flat.Unit else self.Root.CFrame.LookVector
-		return self:Velocity(flat * speed + Vector3.new(0, up or 0, 0), duration)
+		if up then
+			return self:Push({ Velocity = flat * speed + Vector3.new(0, up, 0), Duration = duration })
+		end
+		return self:Push({ Direction = flat, Distance = speed * duration, Duration = duration, Profile = "Lunge" })
 	end
 
 	function ctx.Teleport(self: Ctx, cf: CFrame)
 		if not self.IsOwner then
 			return
 		end
-		self.Root.CFrame = cf
-		self.Root.AssemblyLinearVelocity = Vector3.zero
+		Motion.Teleport(self.Root, cf)
 	end
 
 	function ctx.Face(self: Ctx, direction: Vector3?)
@@ -526,6 +559,7 @@ function MoveRunner.Start(character: Model, moveId: string, token: number, aim: 
 	-- Observers can skip the very start of a move if the message arrived late
 	if elapsed and elapsed > 0 then
 		ctx.Started -= elapsed
+		ctx.Late = elapsed
 	end
 	local list = active[character]
 	if not list then

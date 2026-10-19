@@ -2,7 +2,8 @@
 	Animator: the procedural animator, run by every client for every fighter near its camera.
 
 	Each frame (RunService.PreSimulation, i.e. after Roblox's own animation step) it builds a pose from
-	these layers and writes it to the Motor6Ds:
+	these layers and writes it to the joints (AnimationConstraints on current avatars, Motor6Ds on
+	older ones - see Shared/Anim/Rig):
 		1. locomotion (idle / walk / run / jump / fall) in the character's style - Shared/Anim/Styles
 		2. status: block, hit-stun stagger (from the attributes CombatService replicates)
 		3. action tracks started by moves (Animator.Play)
@@ -43,6 +44,7 @@ export type Track = {
 	Stopped: boolean,
 	Looped: boolean,
 	Hold: boolean, -- stay on the last frame instead of ending
+	Registered: boolean, -- false if nothing advances this track (the model isn't animated here)
 	Stop: (self: Track, fade: number?) -> (),
 	SetSpeed: (self: Track, speed: number) -> (),
 }
@@ -105,6 +107,7 @@ local function newTrack(clip: Clip, speed: number, fadeIn: number, hold: boolean
 		Stopped = false,
 		Looped = clip.Loop,
 		Hold = hold,
+		Registered = false,
 	} :: any
 	function track.Stop(self: Track, fade: number?)
 		local f = fade or self.Clip.FadeOut
@@ -159,13 +162,19 @@ local function register(model: Instance)
 	refreshRig()
 	-- Props arrive (or change with the class) after the body
 	model.DescendantAdded:Connect(function(d)
-		if d:IsA("Motor6D") then
+		if Rig.IsJoint(d) then
 			task.defer(refreshRig)
 		end
 	end)
 	model.DescendantRemoving:Connect(function(d)
-		if d:IsA("Motor6D") then
+		if Rig.IsJoint(d) then
 			task.defer(refreshRig)
+		end
+	end)
+	-- Say so loudly if this body can't be animated, instead of silently standing still
+	task.delay(3, function()
+		if entries[model] == entry and not entry.Rig and model.Parent then
+			warn(string.format("[Animator] %s has no R15 joints (AnimationConstraint or Motor6D) to animate", model:GetFullName()))
 		end
 	end)
 	model:GetAttributeChangedSignal("Class"):Connect(function()
@@ -203,8 +212,38 @@ function Animator.Play(model: Model, clip: Clip, options: PlayOptions?): Track?
 		entry.Fidget = nil
 	end
 	entry.IdleTime = 0
+	track.Registered = true
 	table.insert(entry.Tracks, track)
 	return track
+end
+
+-- Animation time (seconds into the clip) at which `track` reaches the clip's mark `name`.
+function Animator.Mark(track: Track, name: string): number?
+	return track.Clip.Marks[name]
+end
+
+-- Slow motion for every animation on this client: `scale` (e.g. 0.3) for `duration` seconds, then an
+-- eased return to full speed. Animation only - physics and the server keep real time.
+local slowScale, slowUntil = 1, 0
+function Animator.SlowMo(scale: number, duration: number)
+	local now = os.clock()
+	if now >= slowUntil or scale < slowScale then
+		slowScale = scale
+	end
+	slowUntil = math.max(slowUntil, now + duration)
+end
+
+local SLOWMO_RECOVER = 0.18 -- seconds to ease back to full speed
+local function timeScale(): number
+	local now = os.clock()
+	if now < slowUntil then
+		return slowScale
+	end
+	local t = (now - slowUntil) / SLOWMO_RECOVER
+	if t >= 1 then
+		return 1
+	end
+	return slowScale + (1 - slowScale) * (1 - (1 - t) * (1 - t))
 end
 
 function Animator.StopAll(model: Model, fade: number?)
@@ -306,7 +345,35 @@ end
 
 local function angleBetween(a: CFrame, b: CFrame): number
 	local _, angle = (a:Inverse() * b):ToAxisAngle()
-	return math.abs(angle)
+	-- ToAxisAngle can report a small turn as nearly a full one the other way round
+	angle = math.abs(angle) % (2 * math.pi)
+	return if angle > math.pi then 2 * math.pi - angle else angle
+end
+
+-- Advances the action tracks' clocks and fades. Runs every frame for every fighter, even ones too
+-- far away to draw, so moves waiting on a track's marks keep their timing everywhere.
+local function advanceTracks(entry: Entry, dt: number, scale: number)
+	local frozen = os.clock() < entry.HitStopUntil
+	local clockDt = if frozen then 0 else dt * scale
+	local i = 1
+	while i <= #entry.Tracks do
+		local track = entry.Tracks[i]
+		track.Time += clockDt * track.Speed
+		local clip = track.Clip
+		if not track.Looped and not track.Hold and not track.Stopped and track.Time >= clip.Length then
+			track:Stop()
+		end
+		if track.FadeSpeed == math.huge then
+			track.Weight = track.Target
+		else
+			track.Weight = approach(track.Weight, track.Target, dt * track.FadeSpeed)
+		end
+		if track.Stopped and track.Weight <= 0 then
+			table.remove(entry.Tracks, i)
+		else
+			i += 1
+		end
+	end
 end
 
 local function blockClip(entry: Entry): Clip
@@ -317,7 +384,7 @@ local function blockClip(entry: Entry): Clip
 	return Clips.Common.Block
 end
 
-local function update(entry: Entry, dt: number, now: number, camPos: Vector3)
+local function update(entry: Entry, dt: number, now: number, camPos: Vector3, scale: number)
 	local rig = entry.Rig
 	if not rig then
 		return
@@ -334,7 +401,7 @@ local function update(entry: Entry, dt: number, now: number, camPos: Vector3)
 	end
 	local step = if distance > LOW_RATE_DISTANCE then dt * 2 else dt
 	local frozen = os.clock() < entry.HitStopUntil
-	local clockDt = if frozen then 0 else step
+	local clockDt = if frozen then 0 else step * scale
 
 	-- 1. Locomotion
 	local cf = root.CFrame
@@ -365,25 +432,9 @@ local function update(entry: Entry, dt: number, now: number, camPos: Vector3)
 	-- 3. Action tracks (and idle fidgets)
 	local calm = grounded and not stunned and not knocked and not blocking and state.Move < 0.08
 	updateFidget(entry, step, calm)
-	local i = 1
-	while i <= #entry.Tracks do
-		local track = entry.Tracks[i]
-		track.Time += clockDt * track.Speed
-		local clip = track.Clip
-		if not track.Looped and not track.Hold and not track.Stopped and track.Time >= clip.Length then
-			track:Stop()
-		end
-		if track.FadeSpeed == math.huge then
-			track.Weight = track.Target
-		else
-			track.Weight = approach(track.Weight, track.Target, step * track.FadeSpeed)
-		end
-		if track.Stopped and track.Weight <= 0 then
-			table.remove(entry.Tracks, i)
-		else
-			blendClip(rig, out, clip, track.Time, track.Weight)
-			i += 1
-		end
+	-- (their clocks and fades are advanced in advanceTracks, every frame)
+	for _, track in entry.Tracks do
+		blendClip(rig, out, track.Clip, track.Time, track.Weight)
 	end
 
 	-- 4. Knockdown: tumble while flying, lie flat once landed
@@ -454,15 +505,14 @@ local function update(entry: Entry, dt: number, now: number, camPos: Vector3)
 	local alphaLegs = if frozen then 1 else 1 - math.exp(-SMOOTH_RATE_LEGS * step)
 	for name, l in out do
 		local joint = rig.Joints[name]
-		local motor = joint and joint.Motor
-		if motor and joint then
+		if joint then
 			local previous = smoothed[name]
 			local value = l
 			if previous and alpha < 1 and angleBetween(previous, l) < SNAP_ANGLE then
 				value = previous:Lerp(l, if LEG_JOINTS[name] then alphaLegs else alpha)
 			end
 			smoothed[name] = value
-			motor.Transform = Rig.ToTransform(joint, value)
+			Rig.SetTransform(joint, Rig.ToTransform(joint, value))
 		end
 	end
 end
@@ -478,9 +528,11 @@ function Animator.Init()
 		local camera = workspace.CurrentCamera
 		local camPos = if camera then camera.CFrame.Position else Vector3.zero
 		local now = serverNow()
+		local scale = timeScale()
 		for _, entry in entries do
+			advanceTracks(entry, dt, scale)
 			local ok, err = pcall(function()
-				update(entry, dt, now, camPos)
+				update(entry, dt, now, camPos, scale)
 			end)
 			if not ok then
 				warn("[Animator]", entry.Model.Name, err)

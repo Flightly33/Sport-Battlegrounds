@@ -1,7 +1,12 @@
 --[[
 	End-to-end smoke test in the simulator (tools/sim): boots the real server and client scripts, then
 	plays every move of every character against the training dummies, gets hit by a bot, uses the
-	evasive, awakens, dies and respawns. Fails on any runtime error.
+	evasive, awakens, dies and respawns. Fails on any runtime error, and on anything a player would
+	notice: a move that doesn't animate the body, a dash or lunge that doesn't move the character, a
+	dash that leaves the arena or ignores its cooldown, knockback that doesn't push.
+
+	Characters are built like current Roblox avatars (AnimationConstraint joints); SIM_RIG=motor6d
+	tests the legacy Motor6D rig instead.
 
 	rojo sourcemap default.project.json -o sourcemap.json && lune run tests/sim_smoke.luau
 ]]
@@ -22,6 +27,7 @@ local only = if process.args[1] and process.args[1] ~= "quick" then string.split
 
 World.TraceDeaths = true
 World.Digest = process.env.SIM_DIGEST ~= nil
+World.RigKind = process.env.SIM_RIG or "constraint"
 local world = World.new(root)
 local game = world.Game
 local RS = world.Services.ReplicatedStorage
@@ -64,8 +70,10 @@ local ServerRemotes = server.Require(Shared:WaitForChild("Remotes"))
 ServerRemotes.Event("HitRequest").OnServerEvent:Connect(function(_p, token, hitName, targets)
 	print(string.format("[test] HitRequest token=%s hit=%s targets=%d", tostring(token), tostring(hitName), #targets))
 end)
+local requests: { string } = {} -- every move the player started, in order
 ServerRemotes.Event("MoveRequest").OnServerEvent:Connect(function(_p, token, moveId)
 	print(string.format("[test] MoveRequest token=%s %s", tostring(token), tostring(moveId)))
+	table.insert(requests, moveId)
 end)
 -- Count confirmed hits per move on the client
 local hits: { [string]: number } = {}
@@ -92,6 +100,92 @@ check(crowd ~= nil and #crowd:GetChildren() > 50, "crowd built (" .. tostring(cr
 
 local function fighterOfPlayer(p)
 	return CombatService.ForPlayer(p)
+end
+
+local ServerConfig = server.Require(Shared:WaitForChild("Config"))
+local Layout = server.Require(Shared:WaitForChild("Stadium"):WaitForChild("Layout"))
+
+--------------------------------------------------------------------------------
+-- Probes: what a player would actually see - joints turning, the character moving
+--------------------------------------------------------------------------------
+local function jointsOf(character)
+	local list = {}
+	for _, d in character:GetDescendants() do
+		local c = d.ClassName
+		if (c == "AnimationConstraint" or c == "Motor6D") and d.Name ~= "SB_Prop" then
+			table.insert(list, d)
+		end
+	end
+	return list
+end
+
+-- Rotation angle of a CFrame in degrees (0..180; ToAxisAngle may report a small turn as ~360).
+local function turn(cf): number
+	local _, angle = cf:ToAxisAngle()
+	angle = math.abs(angle) % (2 * math.pi)
+	if angle > math.pi then
+		angle = 2 * math.pi - angle
+	end
+	return math.deg(angle)
+end
+
+-- Largest joint rotation away from the rest pose right now (degrees).
+local function poseAmount(character): number
+	local best = 0
+	for _, j in jointsOf(character) do
+		best = math.max(best, turn(j.Transform))
+	end
+	return best
+end
+
+-- Measures one move: the most any joint turned away from the pose it started in, and how far the
+-- root travelled (horizontally and up) from where it started.
+local probe: any = nil
+local function startProbe(label: string)
+	local character = player.Character
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local joints = jointsOf(character)
+	local base = {}
+	for _, j in joints do
+		base[j] = j.Transform
+	end
+	probe = { Label = label, Joints = joints, Base = base, Root = rootPart, Start = rootPart.Position, MaxAngle = 0, Joint = "-", MaxH = 0, MaxV = 0, Final = rootPart.Position }
+	return probe
+end
+table.insert(world.FrameHooks, function()
+	local p = probe
+	if not p then
+		return
+	end
+	for _, j in p.Joints do
+		local angle = turn(p.Base[j]:Inverse() * j.Transform)
+		if angle > p.MaxAngle then
+			p.MaxAngle, p.Joint = angle, j.Name
+		end
+	end
+	local d = p.Root.Position - p.Start
+	p.MaxH = math.max(p.MaxH, Vector3.new(d.X, 0, d.Z).Magnitude)
+	p.MaxV = math.max(p.MaxV, d.Y)
+	p.Final = p.Root.Position
+end)
+local function stopProbe()
+	local p = probe
+	probe = nil
+	return p
+end
+
+local animSeen: { [string]: number } = {} -- move id -> largest joint rotation seen (degrees)
+local animJoint: { [string]: string } = {}
+
+-- Rest pose check: a live idle has some joint well away from the T-pose / bind pose.
+world:Run(0.5)
+check(poseAmount(player.Character) > 3, string.format("player idle is animated (largest joint rotation %.1f deg)", poseAmount(player.Character)))
+do
+	local best = 0
+	for _, d in dummies:GetChildren() do
+		best = math.max(best, poseAmount(d))
+	end
+	check(best > 0.5, string.format("training dummies are animated (largest joint rotation %.1f deg)", best))
 end
 
 -- Where each dummy stood when the test started (by name: dummies are rebuilt when they respawn)
@@ -166,6 +260,8 @@ end
 
 local MoveRunner = client.Require(world.Services.StarterPlayer.StarterPlayerScripts.Client:WaitForChild("MoveRunner"))
 local function use(slot: string, settle: number?)
+	local before = #requests
+	local p = startProbe(slot)
 	local ok = Controller.Use(slot)
 	if process.env.SIM_TRACE then
 		world:Run(0.05)
@@ -182,12 +278,17 @@ local function use(slot: string, settle: number?)
 		local c = player.Character
 		local h = c and c:FindFirstChildOfClass("Humanoid")
 		print("   character:", c, c and c.Parent, "health:", h and h.Health, "root:", c and c:FindFirstChild("HumanoidRootPart"))
-		local c = player.Character
-		local h = c and c:FindFirstChildOfClass("Humanoid")
-		print("   character:", c, c and c.Parent, "health:", h and h.Health, "root:", c and c:FindFirstChild("HumanoidRootPart"))
 	end
 	waitFree(settle)
-	return ok
+	stopProbe()
+	if #requests > before then
+		local id = requests[#requests]
+		if p.MaxAngle > (animSeen[id] or -1) then
+			animSeen[id] = p.MaxAngle
+			animJoint[id] = p.Joint
+		end
+	end
+	return ok, p
 end
 
 do
@@ -283,10 +384,14 @@ local function tryMove(classId: string, slot: string, awakened: boolean)
 		faceDummy(tonumber(slot) % 3 + 1, distance)
 		local before = landedCount(move.Id)
 		if move.Counter then
+			local p = startProbe(slot)
 			Controller.Use(slot)
 			world:Run(0.25)
 			botAttack()
 			waitFree(1.0)
+			stopProbe()
+			animSeen[move.Id] = math.max(animSeen[move.Id] or 0, p.MaxAngle)
+			animJoint[move.Id] = p.Joint
 		else
 			use(slot, 1.0)
 		end
@@ -296,6 +401,73 @@ local function tryMove(classId: string, slot: string, awakened: boolean)
 				print(string.format("[test] %s landed from %d studs (attempt %d)", move.Id, distance, attempt))
 			end
 			return
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Movement: every move that should carry the character does, measured on open ground
+--------------------------------------------------------------------------------
+-- Minimum travel (studs) for moves that displace their user: H = horizontal, V = upward.
+local MOVERS: { [string]: { H: number?, V: number? } } = {
+	Soccer_DribbleDash = { H = 15 },
+	Soccer_BicycleKick = { V = 4 },
+	Soccer_Volley = { V = 1.5 },
+	Basketball_AnkleBreaker = { H = 3 },
+	Basketball_SlamDunk = { V = 4 },
+	Basketball_FastBreak = { H = 20 },
+	Basketball_CrossoverCombo = { H = 1.5 },
+	Basketball_Supernova = { V = 15 },
+	Football_StiffArm = { H = 4 },
+	Football_BlitzTackle = { H = 15 },
+	Football_TouchdownSpike = { V = 3 },
+	Football_MeteorSack = { H = 10 },
+	Baseball_StolenBase = { H = 12 },
+}
+local moverResults: { [string]: any } = {}
+
+-- West half of the pitch, facing the west goal: clear of the dummies (east) and the noob (centre).
+local function openGround()
+	local pos = Vector3.new(-Layout.PITCH_HALF_X * 0.4, 3, Layout.PITCH_HALF_Z * 0.4)
+	return CFrame.lookAt(pos, pos + Vector3.new(-1, 0, 0))
+end
+
+local function placePlayer(cf)
+	local character = player.Character
+	settle(character)
+	character:PivotTo(cf)
+	world:Run(0.1)
+end
+
+-- Distance inside the arena wall (negative = outside), from the barrier's rounded rectangle.
+local function insideArena(position): number
+	local r = Layout.CORNER_RADIUS
+	local qx = math.abs(position.X) - (Layout.BARRIER_HALF_X - r)
+	local qz = math.abs(position.Z) - (Layout.BARRIER_HALF_Z - r)
+	local outside = Vector3.new(math.max(qx, 0), 0, math.max(qz, 0)).Magnitude + math.min(math.max(qx, qz), 0) - r
+	return -outside
+end
+
+local function movementPass(classId: string, awakened: boolean)
+	local ids = {}
+	for id in MOVERS do
+		table.insert(ids, id)
+	end
+	table.sort(ids)
+	for _, id in ids do
+		local move = Characters.Move(id)
+		if move and move.Class == classId and (move.Awakened == true) == awakened then
+			readyFor(move)
+			placePlayer(openGround())
+			local _, p = use(move.Slot, 0.4)
+			local need = MOVERS[id]
+			moverResults[id] = p
+			if need.H then
+				check(p.MaxH >= need.H, string.format("%s moves its user (%.1f of %.1f studs)", id, p.MaxH, need.H))
+			end
+			if need.V then
+				check(p.MaxV >= need.V, string.format("%s lifts its user (%.1f of %.1f studs up)", id, p.MaxV, need.V))
+			end
 		end
 	end
 end
@@ -317,6 +489,7 @@ for _, classId in classes do
 	for slot = 1, 4 do
 		tryMove(classId, tostring(slot), false)
 	end
+	movementPass(classId, false)
 	-- Dash
 	use("Dash", 0.2)
 	-- Awaken (Studio start: meter full) and the awakened moves
@@ -328,8 +501,89 @@ for _, classId in classes do
 	for slot = 1, 4 do
 		tryMove(classId, tostring(slot), true)
 	end
+	movementPass(classId, true)
 	CombatService.EndAwakening(fighter)
 	world:Run(0.5)
+end
+
+print("== dashes")
+do
+	local dash = ServerConfig.Dash
+	local front = dash.Distance or dash.Speed * dash.Duration
+	local side = dash.SideDistance or front
+	local back = dash.BackDistance or front
+	local function ready()
+		for _, id in { "Dash_Front", "Dash_Side", "Dash_Back" } do
+			readyFor(Characters.Move(id))
+		end
+	end
+	-- input(rootCFrame) -> movement input; way(rootCFrame) -> the direction the dash should go
+	local function dashTest(label: string, distance: number, input, way)
+		ready()
+		placePlayer(openGround())
+		local start = player.Character:FindFirstChild("HumanoidRootPart").CFrame
+		world.InputMove = input(start)
+		local ok, p = use("Dash", 0.3)
+		world.InputMove = Vector3.zero
+		check(ok, label .. " dash started")
+		local moved = p.Final - p.Start
+		moved = Vector3.new(moved.X, 0, moved.Z)
+		print(string.format("[test] %s dash: %.1f studs (configured %.1f)", label, p.MaxH, distance))
+		check(p.MaxH >= distance * 0.75, string.format("%s dash travels (%.1f of %.1f studs)", label, p.MaxH, distance))
+		check(moved.Magnitude > 0.5 and moved.Unit:Dot(way(start)) > 0.8, label .. " dash goes the right way")
+		return p
+	end
+	dashTest("front", front, function()
+		return Vector3.zero
+	end, function(cf)
+		return cf.LookVector
+	end)
+	-- Straight after a dash, the next one is on cooldown
+	local again = Controller.Use("Dash")
+	check(not again and Controller.LastReason == "cooldown", "dash respects its cooldown (" .. tostring(Controller.LastReason) .. ")")
+	dashTest("right", side, function(cf)
+		return cf.RightVector
+	end, function(cf)
+		return cf.RightVector
+	end)
+	dashTest("back", back, function(cf)
+		return -cf.LookVector
+	end, function(cf)
+		return -cf.LookVector
+	end)
+	-- Dashing at the arena wall stops inside it
+	ready()
+	local x = Layout.BARRIER_HALF_X - 6
+	placePlayer(CFrame.lookAt(Vector3.new(x, 3, 0), Vector3.new(x + 10, 3, 0)))
+	use("Dash", 0.5)
+	world:Run(0.3)
+	local inside = insideArena(player.Character:FindFirstChild("HumanoidRootPart").Position)
+	print(string.format("[test] dash at the wall stopped %.1f studs inside it", inside))
+	check(inside >= 1, string.format("dash stops at the arena wall (%.1f studs inside)", inside))
+end
+
+print("== knockback on a dummy")
+do
+	resetDummies()
+	local botFighter = fighterOfPlayer(bot)
+	local dummy = dummies:GetChildren()[2]
+	local victim = CombatService.Get(dummy)
+	if botFighter and victim then
+		botFighter.InvulnUntil = 0
+		botFighter.BusyUntil = 0
+		botFighter.M1ReadyAt = 0
+		bot.Character:PivotTo(CFrame.lookAt(victim.Root.Position - Vector3.new(4, 0, 0), victim.Root.Position))
+		local move = Characters.Move("Soccer_M1")
+		local token = 7001
+		check(MoveService.Start(botFighter, move, token, Vector3.new(1, 0, 0), "4R") == true, "bot finisher accepted")
+		local before = victim.Root.Position
+		CombatService.ApplyHit(botFighter, victim, botFighter.Active[token], "Hit4", move.Hits.Hit4, victim.Root.Position)
+		world:Run(0.4)
+		local d = victim.Root.Position - before
+		check(Vector3.new(d.X, 0, d.Z).Magnitude >= 3, string.format("knockback pushes a dummy (%.1f studs)", Vector3.new(d.X, 0, d.Z).Magnitude))
+	else
+		check(false, "bot and dummy exist for the knockback test")
+	end
 end
 
 print("== getting hit, evasive")
@@ -339,15 +593,21 @@ do
 	local botFighter = fighterOfPlayer(bot)
 	if botFighter and playerFighter then
 		botFighter.InvulnUntil = 0
+		botFighter.BusyUntil = 0
+		botFighter.M1ReadyAt = 0
+		placePlayer(openGround())
 		local move = Characters.Move("Soccer_M1")
 		local ok = MoveService.Start(botFighter, move, 1, Vector3.new(0, 0, -1), "4R")
 		check(ok == true, "bot move accepted")
 		local active = botFighter.Active[1]
+		local before = playerFighter.Root.Position
 		CombatService.ApplyHit(botFighter, playerFighter, active, "Hit4", move.Hits.Hit4, playerFighter.Root.Position)
 		world:Run(0.4)
+		local d = playerFighter.Root.Position - before
+		check(Vector3.new(d.X, 0, d.Z).Magnitude >= 3, string.format("knockback pushes the player (%.1f studs)", Vector3.new(d.X, 0, d.Z).Magnitude))
 		check((player.Character:GetAttribute("StunUntil") or 0) > world:Now() + 1000, "stunned after being hit")
 		player:SetAttribute("Evasive", 100)
-		local evaded = Controller.Use("Dash")
+		local evaded = use("Dash", 0.3)
 		check(evaded, "evasive used while stunned")
 		world:Run(1)
 	else
@@ -376,6 +636,37 @@ table.sort(keys)
 for _, k in keys do
 	print(string.format("  %-40s %d", k, hits[k]))
 end
+-- Every move the player used must visibly animate the body
+print("\n== animation (largest joint rotation away from the starting pose)")
+local animIds = {}
+for id in animSeen do
+	table.insert(animIds, id)
+end
+table.sort(animIds)
+for _, id in animIds do
+	print(string.format("  %-32s %6.1f deg  %s", id, animSeen[id], animJoint[id] or "-"))
+	check(animSeen[id] >= 25, string.format("%s animates the body (largest joint rotation %.1f deg)", id, animSeen[id]))
+end
+local testedClasses = { Common = true }
+for _, c in classes do
+	testedClasses[c] = true
+end
+for id, move in Characters.Moves do
+	if testedClasses[move.Class] and animSeen[id] == nil and not (move.Class == "Common" and only ~= nil) then
+		check(false, id .. " was never played")
+	end
+end
+print("\n== movement (horizontal / upward travel)")
+local moverIds = {}
+for id in moverResults do
+	table.insert(moverIds, id)
+end
+table.sort(moverIds)
+for _, id in moverIds do
+	local p = moverResults[id]
+	print(string.format("  %-32s H %5.1f  V %5.1f", id, p.MaxH, p.MaxV))
+end
+
 -- Every damaging move should have landed at least once
 local missing = {}
 for id, move in Characters.Moves do

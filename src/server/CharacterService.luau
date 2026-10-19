@@ -15,6 +15,7 @@ local Config = require(Shared.Config)
 local Characters = require(Shared.Characters)
 local Props = require(Shared.Props)
 local Remotes = require(Shared.Remotes)
+local Rig = require(Shared.Anim.Rig)
 local StadiumLayout = require(Shared.Stadium.Layout)
 
 local CombatService = require(script.Parent.CombatService)
@@ -112,6 +113,8 @@ function CharacterService.Spawn(player: Player)
 	if animator then
 		animator:Destroy()
 	end
+	-- Kinematic joints for the animator, and the attachment dashes and knockback push on
+	Rig.Prepare(model)
 	model:PivotTo(spawnCFrame())
 	model.Parent = fightersFolder
 	player.Character = model

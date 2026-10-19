@@ -127,6 +127,27 @@ def rb(x, y, z):
     return (x, -z, y)
 
 
+def figure(collection, x, z, yaw_deg):
+    """A blocky R15-sized player (about 5.2 studs tall) standing at (x, z), for judging scale."""
+    yaw = math.radians(yaw_deg)
+    c, s = math.cos(yaw), math.sin(yaw)
+
+    def block(dx, y, dz, size, color):
+        # offset in the figure's frame (x right, -z forward), rotated by yaw, Roblox axes
+        wx = x + dx * c + dz * s
+        wz = z - dx * s + dz * c
+        cf = [wx, y, wz, c, 0, s, 0, 1, 0, -s, 0, c]
+        add({"cf": cf, "size": list(size), "color": color, "material": "SmoothPlastic", "shape": "Block"}, collection)
+
+    skin, shirt, pants = [0.96, 0.80, 0.19], [0.05, 0.41, 0.67], [0.29, 0.59, 0.29]
+    block(-0.5, 1.0, 0, (1, 2, 1), pants)
+    block(0.5, 1.0, 0, (1, 2, 1), pants)
+    block(0, 3.0, 0, (2, 2, 1), shirt)
+    block(-1.5, 3.0, 0, (1, 2, 1), skin)
+    block(1.5, 3.0, 0, (1, 2, 1), skin)
+    block(0, 4.6, 0, (1.2, 1.2, 1.2), skin)
+
+
 def main():
     args = sys.argv[1:]
     stadium = json.load(open(args[0]))
@@ -140,6 +161,10 @@ def main():
         add(p, col)
     for p in crowd:
         add(p, col)
+    # Life-size players for scale: on the pitch, by the west goal, on the north touchline
+    figure(col, -90, 20, 90)
+    figure(col, -150, 6, 90)
+    figure(col, 0, -96, 0)
     os.makedirs(out, exist_ok=True)
     scene.render.resolution_x = int(RES * 16 / 9)
     scene.render.resolution_y = RES
@@ -147,6 +172,12 @@ def main():
         "aerial": (rb(-420, 330, 380), rb(0, 0, 0), 22),
         "pitch": (rb(-60, 7, 60), rb(120, 30, -60), 20),
         "stand": (rb(40, 6, 60), rb(60, 50, -250), 24),
+        # Roblox's default follow camera, behind the player on the pitch looking at the west goal
+        "player": (rb(-76, 7.5, 20), rb(-110, 3.5, 20), 24),
+        # Standing next to a goal
+        "goal": (rb(-128, 5.5, 22), rb(-155, 3.5, 2), 30),
+        # On the touchline, looking up at the stands
+        "touchline": (rb(0, 6, -82), rb(0, 22, -160), 22),
     }
     wanted = os.environ.get("PREVIEW_VIEWS", "aerial,pitch,stand").split(",")
     for name in wanted:

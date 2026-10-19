@@ -2,15 +2,16 @@
 	CrowdLayout: where every fan stands and what they wear. Deterministic (seeded), so every client
 	builds the same crowd. Used by Client/Crowd.luau (and the offline preview).
 
-	Fans are "tiny colourful silhouettes": a block body and a ball head, in bright colours, with a bias
-	towards each stand's team colour (blue Soccer end, orange Basketball side...).
+	Fans are colourful silhouettes - a block body and a ball head - sized like real people sitting in the
+	seats (Layout's 3 studs per metre), in bright colours with a bias towards each stand's team colour
+	(blue Soccer end, orange Basketball side...).
 ]]
 
 local Layout = require(script.Parent.Layout)
 
 local CrowdLayout = {}
 
-CrowdLayout.SPACING = 2.3 -- studs between seat slots along a row
+CrowdLayout.SPACING = 0.6 * Layout.STUDS_PER_METER -- seat to seat along a row (0.6 m)
 
 local BRIGHT = {
 	Color3.fromRGB(255, 70, 70),
@@ -81,13 +82,14 @@ function CrowdLayout.Generate(target: number, seed: number?): { Fan }
 	return fans
 end
 
--- Body / head sizes for a fan (studs).
+-- Body / head sizes for a fan (studs): seated, a head-top about 1.25 m above the floor.
+local M = Layout.STUDS_PER_METER
 function CrowdLayout.BodySize(scale: number): Vector3
-	return Vector3.new(1.6, 1.95, 0.85) * scale
+	return Vector3.new(0.52 * M, 0.82 * M, 0.32 * M) * scale
 end
 
 function CrowdLayout.HeadSize(scale: number): Vector3
-	return Vector3.one * 1.12 * scale
+	return Vector3.one * 0.42 * M * scale
 end
 
 return CrowdLayout

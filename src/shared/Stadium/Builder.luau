@@ -162,13 +162,16 @@ local function goal(parent: Instance, x: number)
 	local side = if x > 0 then 1 else -1
 	local g = folder(parent, if x > 0 then "GoalEast" else "GoalWest")
 	local white = Color3.fromRGB(250, 250, 250)
-	local halfWidth, height, depth = 13, 9, 7
+	-- Regulation goal: 7.32 x 2.44 m, about 2 m deep
+	local m = Layout.STUDS_PER_METER
+	local halfWidth, height, depth = 3.66 * m, 2.44 * m, 2 * m
+	local post = 0.15 * m
 	for _, z in { -halfWidth, halfWidth } do
-		part(g, { Name = "Post", Size = Vector3.new(height, 0.8, 0.8), CFrame = CFrame.new(x, height / 2, z) * CFrame.Angles(0, 0, math.pi / 2), Color = white, Shape = Enum.PartType.Cylinder, Collide = true, Shadow = true })
+		part(g, { Name = "Post", Size = Vector3.new(height, post, post), CFrame = CFrame.new(x, height / 2, z) * CFrame.Angles(0, 0, math.pi / 2), Color = white, Shape = Enum.PartType.Cylinder, Collide = true, Shadow = true })
 		part(g, { Name = "BackPost", Size = Vector3.new(height, 0.3, 0.3), CFrame = CFrame.new(x + side * depth, height / 2, z) * CFrame.Angles(0, 0, math.pi / 2), Color = white, Shape = Enum.PartType.Cylinder })
 		part(g, { Name = "Stay", Size = Vector3.new(depth, 0.3, 0.3), CFrame = CFrame.new(x + side * depth / 2, height, z), Color = white, Shape = Enum.PartType.Cylinder })
 	end
-	part(g, { Name = "Crossbar", Size = Vector3.new(halfWidth * 2 + 0.8, 0.8, 0.8), CFrame = CFrame.new(x, height, 0) * CFrame.Angles(0, math.pi / 2, 0), Color = white, Shape = Enum.PartType.Cylinder, Collide = true, Shadow = true })
+	part(g, { Name = "Crossbar", Size = Vector3.new(halfWidth * 2 + post, post, post), CFrame = CFrame.new(x, height, 0) * CFrame.Angles(0, math.pi / 2, 0), Color = white, Shape = Enum.PartType.Cylinder, Collide = true, Shadow = true })
 	-- Net panels
 	local net = { Color = Color3.fromRGB(235, 235, 240), Material = Enum.Material.Fabric, Transparency = 0.62 }
 	part(g, { Name = "NetBack", Size = Vector3.new(0.1, height, halfWidth * 2), CFrame = CFrame.new(x + side * depth, height / 2, 0), Color = net.Color, Material = net.Material, Transparency = net.Transparency })
@@ -181,7 +184,7 @@ end
 local function centerLogo(parent: Instance)
 	local plate = part(parent, {
 		Name = "CenterLogo",
-		Size = Vector3.new(44, 0.05, 44) * Vector3.new(Layout.SCALE, 1, Layout.SCALE),
+		Size = Vector3.new(44, 0.05, 44),
 		CFrame = CFrame.new(0, 0.07, 0),
 		Transparency = 1,
 	})
@@ -189,7 +192,7 @@ local function centerLogo(parent: Instance)
 	gui.Name = "Logo"
 	gui.Face = Enum.NormalId.Top
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 24 / Layout.SCALE
+	gui.PixelsPerStud = 24
 	gui.LightInfluence = 0.6
 	gui.Parent = plate
 	local function label(text: string, y: number, h: number, color: Color3, size: number)
@@ -214,8 +217,10 @@ local function centerLogo(parent: Instance)
 end
 
 local function cornerFlag(parent: Instance, x: number, z: number, color: Color3)
-	part(parent, { Name = "FlagPole", Size = Vector3.new(6, 0.25, 0.25), CFrame = CFrame.new(x, 3, z) * CFrame.Angles(0, 0, math.pi / 2), Color = Color3.fromRGB(240, 240, 240), Shape = Enum.PartType.Cylinder })
-	part(parent, { Name = "Flag", Size = Vector3.new(0.05, 1.3, 1.8), CFrame = CFrame.new(x, 5.3, z + 0.9), Color = color, Material = Enum.Material.Fabric })
+	-- 1.5 m pole, flag about 0.4 x 0.5 m
+	local h = 1.5 * Layout.STUDS_PER_METER
+	part(parent, { Name = "FlagPole", Size = Vector3.new(h, 0.2, 0.2), CFrame = CFrame.new(x, h / 2, z) * CFrame.Angles(0, 0, math.pi / 2), Color = Color3.fromRGB(240, 240, 240), Shape = Enum.PartType.Cylinder })
+	part(parent, { Name = "Flag", Size = Vector3.new(0.05, 1.2, 1.5), CFrame = CFrame.new(x, h - 0.6, z + 0.75), Color = color, Material = Enum.Material.Fabric })
 end
 
 local function buildPitch(root: Instance)
@@ -237,34 +242,35 @@ local function buildPitch(root: Instance)
 	end
 	local lines = folder(pitch, "Lines")
 	local y = 0.03
-	local W = 0.7
+	local W = 0.5 -- real lines are 0.12 m; a little wider reads better from the camera
 	line(lines, Vector3.new(-hx, y, -hz), Vector3.new(hx, y, -hz), W)
 	line(lines, Vector3.new(-hx, y, hz), Vector3.new(hx, y, hz), W)
 	line(lines, Vector3.new(-hx, y, -hz), Vector3.new(-hx, y, hz), W)
 	line(lines, Vector3.new(hx, y, -hz), Vector3.new(hx, y, hz), W)
 	line(lines, Vector3.new(0, y, -hz), Vector3.new(0, y, hz), W)
-	-- Markings grow with the pitch so it keeps real proportions
-	local S = Layout.SCALE
-	arc(lines, Vector3.new(0, y, 0), 26 * S, 0, math.pi * 2, W)
+	-- Regulation markings in metres, stretched with the pitch
+	local m = Layout.STUDS_PER_METER * Layout.FIELD_SCALE
+	arc(lines, Vector3.new(0, y, 0), 9.15 * m, 0, math.pi * 2, W)
 	part(lines, { Name = "CenterSpot", Size = Vector3.new(0.05, 2, 2), CFrame = CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.pi / 2), Color = LINE, Shape = Enum.PartType.Cylinder })
 	for _, side in { -1, 1 } do
 		local gx = side * hx
 		-- Penalty box, goal box, spot and the arc
-		local boxDepth, boxHalf = 42 * S, 50 * S
-		local smallDepth, smallHalf = 15 * S, 22 * S
+		local boxDepth, boxHalf = 16.5 * m, 20.16 * m
+		local smallDepth, smallHalf = 5.5 * m, 9.16 * m
 		line(lines, Vector3.new(gx, y, -boxHalf), Vector3.new(gx - side * boxDepth, y, -boxHalf), W)
 		line(lines, Vector3.new(gx, y, boxHalf), Vector3.new(gx - side * boxDepth, y, boxHalf), W)
 		line(lines, Vector3.new(gx - side * boxDepth, y, -boxHalf), Vector3.new(gx - side * boxDepth, y, boxHalf), W)
 		line(lines, Vector3.new(gx, y, -smallHalf), Vector3.new(gx - side * smallDepth, y, -smallHalf), W)
 		line(lines, Vector3.new(gx, y, smallHalf), Vector3.new(gx - side * smallDepth, y, smallHalf), W)
 		line(lines, Vector3.new(gx - side * smallDepth, y, -smallHalf), Vector3.new(gx - side * smallDepth, y, smallHalf), W)
-		local spot = Vector3.new(gx - side * 30 * S, y, 0)
+		local spot = Vector3.new(gx - side * 11 * m, y, 0)
 		part(lines, { Name = "PenaltySpot", Size = Vector3.new(0.05, 1.4, 1.4), CFrame = CFrame.new(spot) * CFrame.Angles(0, 0, math.pi / 2), Color = LINE, Shape = Enum.PartType.Cylinder })
-		local a = math.acos(12 / 22)
+		-- The penalty arc: the part of a 9.15 m circle round the spot outside the box (5.5 m away)
+		local a = math.acos(5.5 / 9.15)
 		if side > 0 then
-			arc(lines, spot, 22 * S, math.pi - a, math.pi + a, W)
+			arc(lines, spot, 9.15 * m, math.pi - a, math.pi + a, W)
 		else
-			arc(lines, spot, 22 * S, -a, a, W)
+			arc(lines, spot, 9.15 * m, -a, a, W)
 		end
 		goal(pitch, gx)
 	end
@@ -349,8 +355,8 @@ local function buildTier(root: Instance, tier: Layout.Tier, floorBase: number)
 			local gap = if isCorner then (if index % 4 == 0 then 2.5 else 0.15) else 3
 			part(seats, {
 				Name = "Seat",
-				Size = Vector3.new(math.max(1, length - gap), 1.1, 1.5),
-				CFrame = cf * CFrame.new(0, height + 0.55, -tier.Depth * 0.18),
+				Size = Vector3.new(math.max(1, length - gap), 2.4, 1.1),
+				CFrame = cf * CFrame.new(0, height + 1.2, -tier.Depth * 0.22),
 				-- A little darker than the boards, so the fans in front of them pop
 				Color = sideColor(side, blend, alt):Lerp(Color3.fromRGB(14, 14, 22), 0.32),
 				Material = Enum.Material.SmoothPlastic,
@@ -439,7 +445,9 @@ local function buildJumbotrons(root: Instance)
 	for _, side in { "East", "West" } do
 		local sx = if side == "East" then 1 else -1
 		local x = sx * (Layout.BARRIER_HALF_X + offset)
-		local cf = CFrame.lookAt(Vector3.new(x, 108, 0), Vector3.new(0, 108, 0))
+		-- Hung just under the roof line
+		local y = Layout.ROOF_HEIGHT - 16
+		local cf = CFrame.lookAt(Vector3.new(x, y, 0), Vector3.new(0, y, 0))
 		part(screens, { Name = "Frame", Size = Vector3.new(62, 30, 3), CFrame = cf * CFrame.new(0, 0, 1.6), Color = Color3.fromRGB(20, 20, 26), Material = Enum.Material.Metal })
 		local screen = part(screens, { Name = "Jumbotron", Size = Vector3.new(58, 26, 0.5), CFrame = cf, Color = Color3.fromRGB(8, 10, 16), Material = Enum.Material.SmoothPlastic })
 		screen:SetAttribute("Side", side)
@@ -463,7 +471,7 @@ local function buildSkyline(root: Instance)
 	local rng = Random.new(42)
 	for i = 1, 70 do
 		local a = (i / 70) * math.pi * 2 + rng:NextNumber(-0.03, 0.03)
-		local dist = rng:NextNumber(720, 1050) * (1 + (Layout.SCALE - 1) * 0.6)
+		local dist = rng:NextNumber(720, 1050)
 		local h = rng:NextNumber(60, 260)
 		local w = rng:NextNumber(40, 90)
 		local pos = Vector3.new(math.cos(a) * dist * 1.25, h / 2, math.sin(a) * dist)
@@ -476,7 +484,7 @@ local function buildSkyline(root: Instance)
 			end
 		end
 	end
-	part(city, { Name = "Ground", Size = Vector3.new(3000, 2, 3000) * Vector3.new(Layout.SCALE, 1, Layout.SCALE), CFrame = CFrame.new(0, -2.2, 0), Color = Color3.fromRGB(44, 52, 46), Material = Enum.Material.Ground })
+	part(city, { Name = "Ground", Size = Vector3.new(3000, 2, 3000), CFrame = CFrame.new(0, -2.2, 0), Color = Color3.fromRGB(44, 52, 46), Material = Enum.Material.Ground })
 end
 
 function Builder.Build(): Model

@@ -10,24 +10,24 @@ Rojo project in Luau.
 - Push back when something isn't the best approach, and ask when an answer depends on details you don't have.
 - Never invent Roblox asset or sound IDs.
 
-## Open issues (latest feedback, not yet fixed)
-1. In real Studio, the procedural animations don't show (characters stand stiff). The simulator doesn't reproduce this. Asked the user for Studio Output errors; none received yet.
-2. Moves should visibly play body animations (e.g. Soccer kicks show the kick) instead of the player standing still.
-3. Q dash doesn't actually move the player in real Roblox.
-4. Make the stadium accurate to player size. The arena was just doubled (`Layout.SCALE = 2`); seats, rows and props may need rescaling to R15 proportions.
-Items 1 to 3 likely share a root cause: client movement and Motor6D posing behave differently in real Roblox than in the simulator. Check `src/client/Animator.luau` (writes Motor6D.Transform in PreSimulation), `src/server/CharacterService.luau` (deletes Animate and Animator), and the movement helpers in `src/client/MoveRunner.luau` (`ctx:Forward`, `Teleport`, velocities).
+## Open issues (fixed in code, not yet confirmed in Studio)
+1. Characters stood stiff in Studio. Cause: current R15 avatars are jointed with AnimationConstraints, not Motor6Ds, and `Rig.FromCharacter` only read Motor6Ds. `Rig` now reads both, and the Animator warns `[Animator] ... has no R15 joints` when it finds neither.
+2. Moves play full body clips. A clip's `Marks` (Plant, Contact, Release, Burst...) are the frames gameplay fires on, through `ctx:Until(track, mark)` (animation time, so they hold through hit-stop and slow-mo).
+3. Dashes, lunges, leaps and slides did nothing: they pushed on a `RootAttachment` that current rigs lack. `src/client/Motion.luau` now drives them on its own `SB_Motion` attachment (speed curves, wall sliding, arena clamp). Tuning is in `Config.Dash` and `Config.Motion`.
+4. The stadium is built at real-world size, `Layout.STUDS_PER_METER = 3` (an R15 character is about 1.75 m). `Layout.FIELD_SCALE` stretches only the pitch. `Layout.SCALE` is gone.
+If any of these still fail in Studio, ask the user for the Output window's errors and warnings.
 
 ## Layout
 - `src/shared`: Config, Remotes, AssetIds (manual asset IDs), AudioCatalog (audio search terms), Characters/ (move data), Anim/ (rig, poses, clips, locomotion styles), Stadium/ (Layout, Builder, CrowdLayout).
 - `src/server`: CombatService (hits, stun, block, meters), MoveService (validates client moves and hits), CharacterService (spawns R15 from a description; CharacterAutoLoads is off), DummyService (training dummies plus a noob at centre field), MatchService, AudioService (`AssetService:SearchAudioAsync` at startup, publishes on `ReplicatedStorage.Audio`).
-- `src/client`: Animator (procedural), MoveRunner plus Moves/ (per-class move scripts), Controller (input, aim assist), FX/ (VFX built from parts and particles, plus optional Blender-pack hooks), CameraFX, Sound, Music, Crowd, StadiumFX, UI/.
+- `src/client`: Animator (procedural, plus hit-stop and slow-mo), MoveRunner plus Moves/ (per-class move scripts; Moves/Kit holds the shared M1 chain and the Contact / Climax beats), Motion (moves the local character), Controller (input, aim assist), FX/ (VFX built from parts and particles, plus optional Blender-pack hooks), CameraFX, Sound, Music, Crowd, StadiumFX, UI/.
 - `map/Stadium.rbxm`: baked stadium. Rebake with `lune run tools/lune/bake_stadium.luau` after any Layout or Builder change.
 - `blender/build_pack.py`: generates the OBJ meshes and PNG textures in `blender/out/`. Uploaded IDs go into AssetIds.
 
 ## Checks (run before every push)
 - `tools/tc.sh`: Luau strict type check (luau-lsp, old solver). Empty output means clean.
 - `lune run tests/consistency.luau`
-- `rojo sourcemap default.project.json -o sourcemap.json && lune run tests/sim_smoke.luau [quick|Class,Class]`: boots the server and client in a deterministic simulator (`tools/sim`, virtual clock) and plays every move. Env vars: `SIM_ASSETS=1` fills every asset slot, `SIM_DIGEST=1` prints a per-frame state digest, `SIM_TRACE=1` adds tracing.
+- `rojo sourcemap default.project.json -o sourcemap.json && lune run tests/sim_smoke.luau [quick|Class,Class]`: boots the server and client in a deterministic simulator (`tools/sim`, virtual clock) and plays every move. Env vars: `SIM_ASSETS=1` fills every asset slot, `SIM_DIGEST=1` prints a per-frame state digest, `SIM_TRACE=1` adds tracing, `SIM_RIG=motor6d` builds legacy Motor6D rigs (the default is AnimationConstraint, like current avatars). It fails when a move doesn't animate the body, a mover doesn't move, or a dash misses its distance, cooldown or the arena wall.
 - Tools: Lune 0.11; luau-lsp at /root/tools/luau-lsp; bpy venv at /root/tools/blendenv (renders with Cycles on CPU only, no GPU).
 - The simulator only approximates Roblox. A passing sim doesn't prove the game works in Studio.
 

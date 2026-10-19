@@ -12,15 +12,26 @@
 
 local Layout = {}
 
--- The arena floor (twice the original 300 x 200 pitch). Everything else - track, stands, roof,
--- floodlights, spawns - is laid out from these.
-Layout.SCALE = 2
-Layout.PITCH_HALF_X = 150 * Layout.SCALE
-Layout.PITCH_HALF_Z = 100 * Layout.SCALE
-Layout.BARRIER_HALF_X = 182 * Layout.SCALE
-Layout.BARRIER_HALF_Z = 128 * Layout.SCALE
-Layout.CORNER_RADIUS = 45 * Layout.SCALE
-Layout.BARRIER_HEIGHT = 6
+-- Real-world scale. A Roblox R15 character stands about 5.3 studs tall and an adult about 1.75 m,
+-- so the stadium is built at 3 studs per metre: the measurements below are real ones (metres)
+-- converted with it, so goals, seats, stands and fans are life-size next to a player.
+Layout.STUDS_PER_METER = 3
+local M = Layout.STUDS_PER_METER
+
+-- Stretches the playing area (pitch, markings) for more room to fight, without growing goals, seats,
+-- fans or players. 1 = a regulation pitch.
+Layout.FIELD_SCALE = 1
+
+-- The pitch: regulation 105 x 68 m.
+Layout.PITCH_HALF_X = 105 / 2 * M * Layout.FIELD_SCALE
+Layout.PITCH_HALF_Z = 68 / 2 * M * Layout.FIELD_SCALE
+-- Run-off and track between the pitch and the barrier: behind the goals / along the touchlines.
+Layout.RUNOFF_X = 10.5 * M
+Layout.RUNOFF_Z = 9 * M
+Layout.BARRIER_HALF_X = Layout.PITCH_HALF_X + Layout.RUNOFF_X
+Layout.BARRIER_HALF_Z = Layout.PITCH_HALF_Z + Layout.RUNOFF_Z
+Layout.CORNER_RADIUS = 15 * M
+Layout.BARRIER_HEIGHT = 2 * M -- the wall in front of the first row (with LED boards on it)
 
 export type Tier = {
 	Name: string,
@@ -32,16 +43,29 @@ export type Tier = {
 	Rise: number, -- height gained per row
 }
 
-Layout.Tiers = {
-	{ Name = "Lower", FirstRow = 0, Rows = 18, Start = 2, BaseHeight = Layout.BARRIER_HEIGHT + 0.5, Depth = 3.2, Rise = 1.7 },
-	{ Name = "Upper", FirstRow = 18, Rows = 22, Start = 72, BaseHeight = 52, Depth = 3.4, Rise = 2.25 },
-} :: { Tier }
+-- Rows: 0.82 m deep (seat pitch), rising 0.4 m in the shallow lower tier and 0.56 m in the steep upper.
+local ROW_DEPTH = 0.82 * M
+local LOWER_ROWS, UPPER_ROWS = 22, 26
+local lowerTop = Layout.BARRIER_HEIGHT + 0.5 + LOWER_ROWS * 0.4 * M
 
 -- The ring of private boxes between the tiers
-Layout.BOX_START = 61.6
-Layout.BOX_DEPTH = 10
-Layout.BOX_FLOOR = 38
-Layout.BOX_HEIGHT = 14
+Layout.BOX_START = 0.7 * M + LOWER_ROWS * ROW_DEPTH + 0.5 * M
+Layout.BOX_DEPTH = 3.3 * M
+Layout.BOX_FLOOR = math.ceil(lowerTop)
+Layout.BOX_HEIGHT = 4.5 * M
+
+Layout.Tiers = {
+	{ Name = "Lower", FirstRow = 0, Rows = LOWER_ROWS, Start = 0.7 * M, BaseHeight = Layout.BARRIER_HEIGHT + 0.5, Depth = ROW_DEPTH, Rise = 0.4 * M },
+	{
+		Name = "Upper",
+		FirstRow = LOWER_ROWS,
+		Rows = UPPER_ROWS,
+		Start = Layout.BOX_START + Layout.BOX_DEPTH + 0.5,
+		BaseHeight = Layout.BOX_FLOOR + Layout.BOX_HEIGHT + 0.5 * M,
+		Depth = ROW_DEPTH,
+		Rise = 0.56 * M,
+	},
+} :: { Tier }
 
 local upper = Layout.Tiers[2]
 Layout.ROOF_START = upper.Start + upper.Rows * upper.Depth - 18 -- the canopy overhangs the top rows
@@ -159,7 +183,6 @@ function Layout.SideOf(position: Vector3): string
 	return if z > 0 then "South" else "North"
 end
 
--- A random point on the pitch to spawn at (feet on the ground, y = HumanoidRootPart height).
 -- How far `position` is inside the barrier's rounded rectangle (studs, negative = outside), and the
 -- outward normal of the nearest stretch of wall. Movement uses these to stop at the edge of the arena.
 function Layout.InsideDistance(position: Vector3): number
@@ -184,6 +207,7 @@ function Layout.WallNormal(position: Vector3): Vector3
 	return Vector3.new(0, 0, sz)
 end
 
+-- A random point on the pitch to spawn at (feet on the ground, y = HumanoidRootPart height).
 function Layout.RandomSpawn(rng: Random): Vector3
 	local x = rng:NextNumber(-Layout.PITCH_HALF_X + 20, Layout.PITCH_HALF_X - 20)
 	local z = rng:NextNumber(-Layout.PITCH_HALF_Z + 15, Layout.PITCH_HALF_Z - 15)
@@ -198,7 +222,7 @@ end
 -- Training dummies stand on the track behind the east goal.
 function Layout.DummySpots(count: number): { CFrame }
 	local spots: { CFrame } = {}
-	local x = Layout.PITCH_HALF_X + 17 * Layout.SCALE
+	local x = Layout.PITCH_HALF_X + 5.5 * M
 	for i = 1, count do
 		local z = (i - (count + 1) / 2) * 12
 		table.insert(spots, CFrame.lookAt(Vector3.new(x, 3, z), Vector3.new(0, 3, z)))

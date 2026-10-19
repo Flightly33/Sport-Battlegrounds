@@ -640,6 +640,13 @@ do
 	character:FindFirstChildOfClass("Humanoid").Health = 0
 	world:Run(5.5)
 	check(player.Character ~= character, "player respawned")
+	local copies = 0
+	for _, m in player.Character.Parent:GetChildren() do
+		if m.Name == player.Name then
+			copies += 1
+		end
+	end
+	check(copies == 1, string.format("one body per player after respawning (%d)", copies))
 	check(#dummies:GetChildren() >= 4, "dummy respawned")
 end
 

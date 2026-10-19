@@ -92,10 +92,12 @@ local function configureHumanoid(humanoid: Humanoid)
 	humanoid.AutoJumpEnabled = false
 end
 
-function CharacterService.Spawn(player: Player)
-	if not player.Parent then
-		return
-	end
+-- Players with a spawn in progress. Building a character can take seconds (it loads the avatar), and a
+-- second spawn starting meanwhile (the watchdog, a respawn) would leave two copies of the player.
+local spawning: { [Player]: boolean } = {}
+local deadSince: { [Player]: number } = {} -- watchdog: when each player was first seen without a living body
+
+local function spawnNow(player: Player)
 	local classId = (player:GetAttribute("Class") :: string?) or Characters.Default
 	local description = getDescription(player)
 	local ok, model = pcall(function()
@@ -120,6 +122,12 @@ function CharacterService.Spawn(player: Player)
 	-- Kinematic joints for the animator, and the attachment dashes and knockback push on
 	Rig.Prepare(model)
 	model:PivotTo(spawnCFrame())
+	-- Only ever one body per player
+	for _, other in fightersFolder:GetChildren() do
+		if other ~= model and (other == player.Character or other.Name == player.Name) then
+			other:Destroy()
+		end
+	end
 	model.Parent = fightersFolder
 	player.Character = model
 	if not reported[player] then
@@ -138,6 +146,20 @@ function CharacterService.Spawn(player: Player)
 			end
 		end)
 	end)
+end
+
+function CharacterService.Spawn(player: Player)
+	if not player.Parent or spawning[player] then
+		return
+	end
+	spawning[player] = true
+	local ok, err = pcall(function()
+		spawnNow(player)
+	end)
+	spawning[player] = nil
+	if not ok then
+		error(err, 0)
+	end
 end
 
 -- Replaces the player's character with a fresh one. Never leaves them without one: a failed spawn is
@@ -201,6 +223,8 @@ function CharacterService.Init()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		descriptions[player] = nil
+		spawning[player] = nil
+		deadSince[player] = nil
 		reported[player] = nil
 		local character = player.Character
 		if character then
@@ -210,7 +234,6 @@ function CharacterService.Init()
 
 	-- Anyone who falls out of the arena respawns, and anyone left dead or without a character is brought
 	-- back (in case a respawn was missed)
-	local deadSince: { [Player]: number } = {}
 	task.spawn(function()
 		while true do
 			task.wait(1)
@@ -218,7 +241,7 @@ function CharacterService.Init()
 				local character = player.Character
 				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 				local alive = character and character.Parent and humanoid and humanoid.Health > 0
-				if alive then
+				if alive or spawning[player] then
 					deadSince[player] = nil
 				else
 					deadSince[player] = deadSince[player] or os.clock()

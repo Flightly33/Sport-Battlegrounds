@@ -47,18 +47,18 @@
     "Lighting": {
       "$properties": {
         "Technology": "Future",
-        "ClockTime": 0.3,
-        "GeographicLatitude": 28,
-        "Brightness": 2,
+        "ClockTime": 23.2,
+        "GeographicLatitude": 20,
+        "Brightness": 5,
         "Ambient": [
-          0.34,
-          0.35,
-          0.45
+          0.2,
+          0.21,
+          0.3
         ],
         "OutdoorAmbient": [
-          0.62,
-          0.64,
-          0.74
+          0.4,
+          0.42,
+          0.54
         ],
         "ColorShift_Top": [
           0.75,
@@ -72,9 +72,9 @@
         ],
         "EnvironmentDiffuseScale": 1,
         "EnvironmentSpecularScale": 1,
-        "ExposureCompensation": 0.45,
+        "ExposureCompensation": 0.35,
         "GlobalShadows": true,
-        "ShadowSoftness": 0.35
+        "ShadowSoftness": 0.18
       },
       "Atmosphere": {
         "$className": "Atmosphere",
@@ -116,7 +116,7 @@
         "$className": "ColorCorrectionEffect",
         "$properties": {
           "Brightness": 0.03,
-          "Contrast": 0.18,
+          "Contrast": 0.22,
           "Saturation": 0.28,
           "TintColor": [
             0.9,

@@ -49,20 +49,20 @@
         "Technology": "Future",
         "ClockTime": 0.3,
         "GeographicLatitude": 28,
-        "Brightness": 1.2,
+        "Brightness": 2,
         "Ambient": [
-          0.12,
-          0.12,
-          0.2
+          0.34,
+          0.35,
+          0.45
         ],
         "OutdoorAmbient": [
-          0.22,
-          0.22,
-          0.36
+          0.62,
+          0.64,
+          0.74
         ],
         "ColorShift_Top": [
-          0.55,
-          0.65,
+          0.75,
+          0.8,
           1
         ],
         "ColorShift_Bottom": [
@@ -70,16 +70,16 @@
           0.18,
           0.45
         ],
-        "EnvironmentDiffuseScale": 0.6,
+        "EnvironmentDiffuseScale": 1,
         "EnvironmentSpecularScale": 1,
-        "ExposureCompensation": 0.35,
+        "ExposureCompensation": 0.45,
         "GlobalShadows": true,
         "ShadowSoftness": 0.35
       },
       "Atmosphere": {
         "$className": "Atmosphere",
         "$properties": {
-          "Density": 0.36,
+          "Density": 0.28,
           "Offset": 0.2,
           "Color": [
             0.25,
@@ -92,7 +92,7 @@
             0.32
           ],
           "Glare": 0.35,
-          "Haze": 1.6
+          "Haze": 1.2
         }
       },
       "Sky": {

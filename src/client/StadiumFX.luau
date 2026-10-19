@@ -223,6 +223,9 @@ end
 
 -- Night match: a grid of downlights over the pitch (a light only reaches 60 studs, so the floodlights
 -- themselves are too high up to light it). Cool white, no shadows, so it stays cheap.
+-- Off: Roblox lights reach 60 studs, so a grid leaves dark gaps across a pitch this big. The night
+-- lighting (Lighting's ambient in default.project.json) lights the field and stands evenly instead.
+local PITCH_LIGHTS = false
 local PITCH_LIGHT_HEIGHT = 35
 local PITCH_LIGHT_SPACING = 85
 local function pitchLights()
@@ -258,7 +261,9 @@ local function pitchLights()
 end
 
 function StadiumFX.Init()
-	pitchLights()
+	if PITCH_LIGHTS then
+		pitchLights()
+	end
 	task.spawn(function()
 		local root = stadium()
 		if not root then

@@ -93,6 +93,27 @@ local function fighterOfPlayer(p)
 	return CombatService.ForPlayer(p)
 end
 
+-- Where each dummy stood when the test started (by name: dummies are rebuilt when they respawn)
+local dummyHome: { [string]: any } = {}
+for _, d in dummies:GetChildren() do
+	dummyHome[d.Name] = d:FindFirstChild("HumanoidRootPart").CFrame
+end
+
+-- Clears anything still moving a model: knockback velocities, grab welds, vertical speed.
+local function settle(model)
+	for _, x in model:GetDescendants() do
+		if x.ClassName == "LinearVelocity" or (x.ClassName == "Weld" and x.Name == "SB_Grab") then
+			x:Destroy()
+		end
+	end
+	world.Vertical[model] = 0
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+end
+
+-- Every dummy back home, standing, full health and free to be hit.
 local function resetDummies()
 	for _, d in dummies:GetChildren() do
 		local h = d:FindFirstChildOfClass("Humanoid")
@@ -101,6 +122,12 @@ local function resetDummies()
 			h.Health = h.MaxHealth
 			f.StunUntil = 0
 			f.KnockdownUntil = 0
+			f.InvulnUntil = 0
+			settle(d)
+			local home = dummyHome[d.Name]
+			if home then
+				d:PivotTo(home)
+			end
 		end
 	end
 end
@@ -112,6 +139,7 @@ local function faceDummy(index: number, distance: number)
 	if not character or not dummy then
 		return
 	end
+	settle(character)
 	local dummyRoot = dummy:FindFirstChild("HumanoidRootPart")
 	local target = dummyRoot.Position
 	local from = target + Vector3.new(-distance, 0, 0)
@@ -128,8 +156,8 @@ end
 
 local function waitFree(extra: number?)
 	-- wait until the local player is no longer busy
-	local deadline = os.clock() + 4
-	while Controller.IsBusy() and os.clock() < deadline do
+	local deadline = world:Now() + 4
+	while Controller.IsBusy() and world:Now() < deadline do
 		world:Run(0.1)
 	end
 	world:Run(extra or 0.25)
@@ -144,7 +172,7 @@ local function use(slot: string, settle: number?)
 		local n = 0
 		for _, ctx in MoveRunner.Active(c) do
 			n += 1
-			print(string.format("[trace] %s active=%s cancelled=%s stun=%s now=%s", ctx.Move.Id, tostring(not ctx.Finished), tostring(ctx.Cancelled), tostring(c:GetAttribute("StunUntil")), tostring(os.clock() + 1000)))
+			print(string.format("[trace] %s active=%s cancelled=%s stun=%s now=%s", ctx.Move.Id, tostring(not ctx.Finished), tostring(ctx.Cancelled), tostring(c:GetAttribute("StunUntil")), tostring(world:Now() + 1000)))
 		end
 		print("[trace] use", slot, ok, "active contexts", n)
 	end
@@ -183,6 +211,94 @@ if process.env.SIM_TRACE then
 		return found
 	end
 end
+local function landedCount(moveId: string): number
+	local n = 0
+	for k, count in hits do
+		if string.sub(k, 1, #moveId + 1) == moveId .. "." then
+			n += count
+		end
+	end
+	return n
+end
+
+local function moveFor(classId: string, slot: string, awakened: boolean)
+	for _, move in Characters.Moves do
+		if move.Class == classId and move.Slot == slot and (move.Awakened == true) == awakened then
+			return move
+		end
+	end
+	return nil
+end
+
+-- Lets a move go again right away (server and client cooldowns), keeping the player awakened if needed.
+local function readyFor(move)
+	local fighter = fighterOfPlayer(player)
+	fighter.Cooldowns[move.Id] = 0
+	fighter.BusyUntil = 0
+	fighter.InvulnUntil = 0
+	ServerRemotes.Event("Cooldown"):FireClient(player, move.Id, 0)
+	if move.Awakened and not CombatService.IsAwakened(fighter) then
+		CombatService.StartAwakening(fighter)
+	end
+	world:Run(0.2)
+end
+
+-- A counter only fires when someone hits you: the bot swings at the player during the window.
+local function botAttack()
+	local playerFighter = fighterOfPlayer(player)
+	local botFighter = fighterOfPlayer(bot)
+	if not (playerFighter and botFighter) then
+		return
+	end
+	local root = playerFighter.Root
+	bot.Character:PivotTo(CFrame.lookAt((root.CFrame * CFrame.new(0, 0, -5)).Position, root.Position))
+	botFighter.InvulnUntil = 0
+	botFighter.BusyUntil = 0
+	botFighter.M1ReadyAt = 0
+	local move = Characters.Move("Soccer_M1")
+	if MoveService.Start(botFighter, move, 9000 + math.random(1, 999), root.Position - botFighter.Root.Position, "1") then
+		local _, active = next(botFighter.Active)
+		CombatService.ApplyHit(botFighter, playerFighter, active, "Hit1", move.Hits.Hit1, root.Position)
+	end
+end
+
+-- Plays one move against a dummy. It should land from a sensible spacing (projectiles from range,
+-- everything else up close); other distances are only tried if it doesn't.
+local function tryMove(classId: string, slot: string, awakened: boolean)
+	local move = moveFor(classId, slot, awakened)
+	if not move or not next(move.Hits) then
+		return
+	end
+	-- Ranged only if every hit is a projectile (a melee swing that launches one still starts up close)
+	local projectile = true
+	for _, hit in move.Hits do
+		if not hit.Projectile then
+			projectile = false
+		end
+	end
+	local distances = if projectile then { 12, 6, 20 } else { 6, 10, 16 }
+	for attempt, distance in distances do
+		readyFor(move)
+		faceDummy(tonumber(slot) % 3 + 1, distance)
+		local before = landedCount(move.Id)
+		if move.Counter then
+			Controller.Use(slot)
+			world:Run(0.25)
+			botAttack()
+			waitFree(1.0)
+		else
+			use(slot, 1.0)
+		end
+		world:Run(if move.Ultimate then 3.5 else 0.8)
+		if landedCount(move.Id) > before then
+			if attempt > 1 then
+				print(string.format("[test] %s landed from %d studs (attempt %d)", move.Id, distance, attempt))
+			end
+			return
+		end
+	end
+end
+
 local classes = only or (if quick then { "Soccer" } else { "Soccer", "Basketball", "Football", "Baseball" })
 for _, classId in classes do
 	print("== " .. classId)
@@ -196,11 +312,9 @@ for _, classId in classes do
 		use("M1", 0.05)
 	end
 	world:Run(1.5)
-	-- Moves 1-4 (re-aim before each; dummies get knocked around)
+	-- Moves 1-4
 	for slot = 1, 4 do
-		faceDummy(slot % 3 + 1, if slot == 2 then 12 else 6)
-		use(tostring(slot), 0.8)
-		world:Run(0.6)
+		tryMove(classId, tostring(slot), false)
 	end
 	-- Dash
 	use("Dash", 0.2)
@@ -211,9 +325,7 @@ for _, classId in classes do
 	world:Run(1.5)
 	check(player.Character:GetAttribute("Awakened") == true, classId .. " awakened")
 	for slot = 1, 4 do
-		faceDummy(slot % 3 + 1, if slot == 1 then 20 else 7)
-		use(tostring(slot), 1.0)
-		world:Run(if slot == 4 then 3.5 else 0.8)
+		tryMove(classId, tostring(slot), true)
 	end
 	CombatService.EndAwakening(fighter)
 	world:Run(0.5)
@@ -232,7 +344,7 @@ do
 		local active = botFighter.Active[1]
 		CombatService.ApplyHit(botFighter, playerFighter, active, "Hit4", move.Hits.Hit4, playerFighter.Root.Position)
 		world:Run(0.4)
-		check((player.Character:GetAttribute("StunUntil") or 0) > os.clock() + 1000, "stunned after being hit")
+		check((player.Character:GetAttribute("StunUntil") or 0) > world:Now() + 1000, "stunned after being hit")
 		player:SetAttribute("Evasive", 100)
 		local evaded = Controller.Use("Dash")
 		check(evaded, "evasive used while stunned")

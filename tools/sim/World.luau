@@ -17,6 +17,7 @@ local serde = require("@lune/serde")
 local task = require("@lune/task")
 
 local Sim = require("./Instance")
+local Clock = require("./Clock")
 local Signal = require("./Signal")
 
 local CFrame, Vector3, Vector2 = roblox.CFrame, roblox.Vector3, roblox.Vector2
@@ -84,6 +85,9 @@ function World.new(root: string)
 	self.TagAdded = {} :: { [string]: any }
 	self.TagRemoved = {} :: { [string]: any }
 	self.Vertical = {} :: { [any]: number }
+
+	-- Same random numbers every run, so results repeat
+	math.randomseed(1)
 
 	Signal.OnError = function(err)
 		table.insert(self.Errors, tostring(err))
@@ -202,7 +206,7 @@ function World:InstallHooks()
 		FireServer = function(remote, ...)
 			local args = table.pack(...)
 			local player = world.ClientPlayer
-			task.delay(world.Latency, function()
+			Clock.Delay(world.Latency, function()
 				Sim.Signal(remote, "OnServerEvent"):Fire(player, table.unpack(args, 1, args.n))
 			end)
 		end,
@@ -212,7 +216,7 @@ function World:InstallHooks()
 			end
 			if player == world.ClientPlayer then
 				local args = table.pack(...)
-				task.delay(world.Latency, function()
+				Clock.Delay(world.Latency, function()
 					Sim.Signal(remote, "OnClientEvent"):Fire(table.unpack(args, 1, args.n))
 				end)
 			end
@@ -220,7 +224,7 @@ function World:InstallHooks()
 		FireAllClients = function(remote, ...)
 			if world.ClientPlayer then
 				local args = table.pack(...)
-				task.delay(world.Latency, function()
+				Clock.Delay(world.Latency, function()
 					Sim.Signal(remote, "OnClientEvent"):Fire(table.unpack(args, 1, args.n))
 				end)
 			end
@@ -301,7 +305,7 @@ function World:InstallHooks()
 		Play = function(tween)
 			local st = Sim.States[tween]
 			local time = (st.Extra.Info and st.Extra.Info.Time) or 1
-			task.delay(time, function()
+			Clock.Delay(time, function()
 				local target = st.Extra.Target
 				if not Sim.States[target].Destroyed then
 					for k, v in st.Extra.Props do
@@ -316,7 +320,7 @@ function World:InstallHooks()
 	}
 	M.Debris = {
 		AddItem = function(_d, inst, life)
-			task.delay(life or 10, function()
+			Clock.Delay(life or 10, function()
 				if not Sim.States[inst].Destroyed then
 					inst:Destroy()
 				end
@@ -448,7 +452,7 @@ function World:InstallHooks()
 	}
 	M.Workspace = {
 		GetServerTimeNow = function()
-			return os.clock() + 1000
+			return Clock.Now + 1000
 		end,
 		BulkMoveTo = function(_ws, parts, cframes)
 			for i, p in parts do
@@ -737,19 +741,31 @@ function World:Context(name: string, isServer: boolean, localPlayer: any?)
 		end,
 		delay = function(t, f, ...)
 			if type(f) == "thread" then
-				return task.delay(t, f, ...)
+				return Clock.Delay(t or 0, f, ...)
 			end
-			return task.delay(t, wrap(f), ...)
+			return Clock.Delay(t or 0, wrap(f), ...)
 		end,
 		wait = function(t)
-			return task.wait(t or 0.016)
+			return Clock.Wait(t or 1 / 60)
 		end,
-		cancel = task.cancel,
+		cancel = function(handle)
+			if type(handle) == "thread" then
+				task.cancel(handle)
+			else
+				Clock.Cancel(handle)
+			end
+		end,
 	}
+	-- Scripts see virtual time
+	local osShim = table.clone(os)
+	osShim.clock = function()
+		return Clock.Now
+	end
 	local env = {
 		game = gameProxy,
 		workspace = self.Services.Workspace,
 		task = taskShim,
+		os = osShim,
 		typeof = simTypeof,
 		Instance = {
 			new = function(className, parent)
@@ -956,18 +972,23 @@ function World:Step(dt: number)
 	Sim.Signal(rs, "Heartbeat"):FireSync(dt)
 end
 
--- Runs the world in (roughly) real time for `seconds`.
+World.FrameTime = 1 / 60
+
+-- Runs the world for `seconds` of virtual time in fixed 60 Hz frames: timers due in a frame wake,
+-- deferred threads run, then the frame steps (render, animation, physics, heartbeat).
 function World:Run(seconds: number)
-	local stop = os.clock() + seconds
-	local last = os.clock()
-	while os.clock() < stop do
-		local now = os.clock()
-		-- Real elapsed time, so physics keeps up with the wall-clock timers moves use
-		local dt = math.clamp(now - last, 1 / 120, 0.1)
-		last = now
-		self:Step(dt)
-		task.wait(1 / 60)
+	local stop = Clock.Now + seconds - 1e-9
+	while Clock.Now < stop do
+		Clock.Advance(World.FrameTime)
+		Clock.Flush()
+		self:Step(World.FrameTime)
+		Clock.Flush()
 	end
+end
+
+-- Current virtual time (what scripts see as os.clock()).
+function World:Now(): number
+	return Clock.Now
 end
 
 return World

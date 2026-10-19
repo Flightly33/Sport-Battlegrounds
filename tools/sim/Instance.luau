@@ -9,6 +9,7 @@
 local roblox = require("@lune/roblox")
 local task = require("@lune/task")
 local Signal = require("./Signal")
+local Clock = require("./Clock")
 
 local CFrame, Vector3, Vector2 = roblox.CFrame, roblox.Vector3, roblox.Vector2
 local db = roblox.getReflectionDatabase()
@@ -436,15 +437,15 @@ Methods.Instance = {
 	end,
 	WaitForChild = function(self, name, timeout)
 		local found = findChild(self, name)
-		local deadline = os.clock() + (timeout or 5)
+		local deadline = Clock.Now + (timeout or 5)
 		while not found do
-			if os.clock() > deadline then
+			if Clock.Now > deadline then
 				if timeout then
 					return nil
 				end
 				error(string.format("[sim] infinite yield: %s:WaitForChild(\"%s\")", (self :: any):GetFullName(), name), 2)
 			end
-			task.wait(0.03)
+			Clock.Wait(0.03)
 			found = findChild(self, name)
 		end
 		return found
@@ -621,7 +622,7 @@ Methods.Humanoid = {
 Methods.ParticleEmitter = { Emit = function() end, Clear = function() end }
 Methods.Sound = {
 	Play = function(self)
-		task.delay(0.05, function()
+		Clock.Delay(0.05, function()
 			if not states[self].Destroyed then
 				fireIfAny(self, "Ended", "")
 			end

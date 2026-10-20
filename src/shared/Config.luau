@@ -8,7 +8,7 @@ local Config = {}
 Config.GameName = "Sports Battlegrounds"
 
 Config.Player = {
-	MaxHealth = 100,
+	MaxHealth = 200,
 	WalkSpeed = 16,
 	RunSpeed = 27,
 	BlockWalkSpeed = 6,
@@ -96,7 +96,7 @@ Config.Awakening = {
 	PerDamageTaken = 0.6,
 	Duration = 55,
 	TransformTime = 2.2, -- invulnerable during the cinematic
-	Heal = 20,
+	Heal = 40,
 	DamageMultiplier = 1.15,
 	SpeedMultiplier = 1.12,
 	-- Studio only: start with a full meter so you can try awakenings without fighting.

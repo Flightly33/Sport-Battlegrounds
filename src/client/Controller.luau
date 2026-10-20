@@ -516,6 +516,13 @@ function Controller.Init()
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+		-- Characters are spawned by the server (CharacterAutoLoads is off), so Roblox doesn't move the
+		-- camera onto the new body: point it there ourselves
+		local camera = workspace.CurrentCamera
+		if camera then
+			camera.CameraType = Enum.CameraType.Custom
+			camera.CameraSubject = humanoid
+		end
 		-- Getting stunned interrupts your own move (unless it has hyper armor)
 		character:GetAttributeChangedSignal("StunUntil"):Connect(function()
 			if attr(character, "StunUntil") > serverNow() then

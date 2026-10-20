@@ -5,6 +5,7 @@
 		             the fighters outlined - used on heavy hits and finishers
 		FOVPunch     quick zoom kick
 		SpeedLines   radial anime speed lines over the screen
+		Blur         a blur pulse on big impacts
 		Cinematic    scripted camera path for awakenings and ultimates (with letterbox bars)
 ]]
 
@@ -90,6 +91,18 @@ function CameraFX.ImpactFrame(characters: { Model }, duration: number?, accent: 
 		for _, h in highlights do
 			h:Destroy()
 		end
+	end)
+end
+
+-- A blur pulse that snaps on and clears (the smear of a big anime impact).
+function CameraFX.Blur(size: number, duration: number)
+	local blur = Instance.new("BlurEffect")
+	blur.Name = "SB_ImpactBlur"
+	blur.Size = size
+	blur.Parent = camera()
+	TweenService:Create(blur, TweenInfo.new(duration, Enum.EasingStyle.Quad), { Size = 0 }):Play()
+	task.delay(duration + 0.05, function()
+		blur:Destroy()
 	end)
 end
 

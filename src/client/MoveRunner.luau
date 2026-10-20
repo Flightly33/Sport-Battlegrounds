@@ -304,6 +304,9 @@ local function newCtx(character: Model, move: Move, token: number, aim: Vector3,
 			end
 			task.wait()
 		end
+		if track.Time < at and not track.Stopped and self.IsOwner then
+			warn(string.format("[MoveRunner] %s: the animation never reached '%s' (at %.2fs, stuck at %.2fs) - the animator isn't advancing", self.Move.Id, mark, at, track.Time))
+		end
 		return self:Alive()
 	end
 
@@ -517,10 +520,14 @@ local function finish(ctx: Ctx)
 	end
 end
 
-function MoveRunner.Cancel(character: Model, token: number)
+function MoveRunner.Cancel(character: Model, token: number, reason: string?)
 	local list = active[character]
 	local ctx = list and list[token]
 	if ctx then
+		if ctx.IsOwner and RunService:IsStudio() then
+			-- Studio only: why your own move stopped early
+			print(string.format("[MoveRunner] %s stopped after %.2fs: %s", ctx.Move.Id, os.clock() - ctx.Started, reason or "?"))
+		end
 		ctx.Cancelled = true
 		for _, track in ctx.Tracks do
 			track:Stop(0.08)
@@ -536,7 +543,7 @@ function MoveRunner.CancelAll(character: Model, includeArmored: boolean?)
 	end
 	for token, ctx in list do
 		if includeArmored or not ctx.Move.HyperArmor then
-			MoveRunner.Cancel(character, token)
+			MoveRunner.Cancel(character, token, "interrupted (stunned or knocked down)")
 		end
 	end
 end

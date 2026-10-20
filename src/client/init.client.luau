@@ -56,7 +56,7 @@ Remotes.Event("MoveStarted").OnClientEvent:Connect(function(character: Model, mo
 end)
 Remotes.Event("MoveCancelled").OnClientEvent:Connect(function(character: Model, token: number)
 	if character then
-		MoveRunner.Cancel(character, token)
+		MoveRunner.Cancel(character, token, "the server cancelled it (hit, stunned or knocked down)")
 	end
 end)
 

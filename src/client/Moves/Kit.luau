@@ -6,6 +6,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = require(Shared.Config)
 local Characters = require(Shared.Characters)
 local Pose = require(Shared.Anim.Pose)
 local Props = require(Shared.Props)
@@ -132,25 +133,66 @@ function Kit.LimbTrail(ctx: Ctx, limb: string, color: Color3, width: number, dur
 	end)
 end
 
+-- A frame at `position` facing the camera (for rings that should read as a burst on screen).
+local function towardCamera(position: Vector3): CFrame
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return CFrame.new(position)
+	end
+	return CFrame.lookAt(position, camera.CFrame.Position) * CFrame.Angles(math.pi / 2, 0, 0)
+end
+
 -- The contact frame: a white-hot flash where foot / fist / bat meets its target, a hair of hit-pause
 -- on the user (the pose "sticks" for a beat) and a camera kick for its owner. strength ~1 for pokes,
 -- 2 for heavy strikes, 3 for ultimates.
 function Kit.Contact(ctx: Ctx, at: Vector3, strength: number)
-	FX.Flash(at, ctx.Palette.Core, 2 + 1.6 * strength, 0.1)
-	FX.ImpactLines(at, ctx.Palette.Core, math.floor(4 + 3 * strength), 2 + 1.5 * strength, 0.14)
-	Animator.HitStop(ctx.Character, 0.02 + 0.02 * strength)
+	local P = ctx.Palette
+	FX.Flash(at, P.Core, 2 + 1.6 * strength, 0.1)
+	FX.Flash(at, P.Primary, 3 + 2.2 * strength, 0.16)
+	FX.ImpactLines(at, P.Core, math.floor(4 + 3 * strength), 2 + 1.5 * strength, 0.14)
+	FX.SpikeBurst(at, P.Primary, P.Core, math.floor(5 + 3 * strength), 2.5 + 2 * strength, 0.12 + 0.03 * strength)
+	FX.Streaks(at, P.Accent, math.floor(4 + 5 * strength), 50 + 20 * strength)
+	if strength >= 1.5 then
+		FX.Shockwave(towardCamera(at), P.Primary, 2 + 2 * strength, 0.3, P.Core)
+	end
+	Animator.HitStop(ctx.Character, 0.02 + 0.025 * strength)
 	if ctx.IsOwner then
-		CameraFX.Shake(0.1 * strength)
+		CameraFX.Shake(0.12 * strength)
+		if Config.VFX.ScreenEffects then
+			if strength >= 1.5 then
+				CameraFX.Blur(4 + 3 * strength, 0.18)
+				CameraFX.FOVPunch(2 + 2 * strength, 0.12)
+			end
+			if strength >= 2.2 then
+				CameraFX.ImpactFrame({ ctx.Character }, 0.08, P.Accent)
+				CameraFX.SpeedLines(0.2, P.Core)
+			end
+		end
 	end
 end
 
 -- An ultimate's big moment: a beat of slow motion, the manga impact frame and an FOV punch.
 function Kit.Climax(ctx: Ctx, at: Vector3, slow: number?, duration: number?)
+	local P = ctx.Palette
 	Animator.SlowMo(slow or 0.3, duration or 0.2)
-	FX.Flash(at, ctx.Palette.Core, 14, 0.2)
+	FX.Flash(at, P.Core, 14, 0.2)
+	FX.Flash(at, P.Primary, 22, 0.35)
+	FX.Pillar(at, P.Primary, P.Core, 6, 120, 0.8)
+	FX.SpikeBurst(at, P.Primary, P.Core, 16, 18, 0.3)
+	FX.Shockwave(CFrame.new(FX.GroundBelow(at) + Vector3.new(0, 0.2, 0)), P.Primary, 26, 0.7, P.Core)
+	task.delay(0.12, function()
+		FX.Shockwave(CFrame.new(FX.GroundBelow(at) + Vector3.new(0, 0.25, 0)), P.Core, 38, 0.8, P.Accent)
+	end)
+	FX.GroundCrack(at, P.Primary, 16, 2.4)
+	FX.Embers(at, P.Accent, 40, 30)
 	if ctx.IsOwner then
-		CameraFX.ImpactFrame({ ctx.Character }, 0.12, ctx.Palette.Accent)
-		CameraFX.FOVPunch(12, 0.3)
+		CameraFX.ImpactFrame({ ctx.Character }, 0.16, P.Accent)
+		CameraFX.FOVPunch(14, 0.35)
+		if Config.VFX.ScreenEffects then
+			CameraFX.Flash(P.Core, 0.25, 0.15)
+			CameraFX.Blur(14, 0.35)
+			CameraFX.SpeedLines(0.6, P.Core)
+		end
 	end
 end
 

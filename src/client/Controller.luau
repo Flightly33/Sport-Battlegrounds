@@ -486,10 +486,10 @@ function Controller.Init()
 
 	Remotes.Event("Knockback").OnClientEvent:Connect(onKnockback)
 	Remotes.Event("Follow").OnClientEvent:Connect(onFollow)
-	Remotes.Event("MoveRejected").OnClientEvent:Connect(function(rejected: number, moveId: string, _reason: string)
+	Remotes.Event("MoveRejected").OnClientEvent:Connect(function(rejected: number, moveId: string, reason: string)
 		local character = player.Character
 		if character then
-			MoveRunner.Cancel(character, rejected)
+			MoveRunner.Cancel(character, rejected, "the server refused it (" .. tostring(reason) .. ")")
 		end
 		if rejected == token then
 			busyUntil = 0

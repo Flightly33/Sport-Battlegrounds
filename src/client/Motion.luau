@@ -176,9 +176,22 @@ end
 
 local function finish(a: Active, natural: boolean)
 	active[a.Constraint] = nil
-	if natural and a.Expected and not a.Blocked and a.Root.Parent then
+	if natural and a.Expected and a.Root.Parent then
 		local moved = ((a.Root.Position - a.From) * Vector3.new(1, 0, 1)).Magnitude
-		if moved < a.Expected * 0.4 then
+		if RunService:IsStudio() then
+			-- Studio only: how far each push really went, to diagnose movement
+			local humanoid = a.Root.Parent:FindFirstChildOfClass("Humanoid")
+			print(string.format(
+				"[Motion] push moved %.1f of %.1f studs (blocked by a wall: %s, anchored: %s, state: %s, constraint active: %s)",
+				moved,
+				a.Expected,
+				tostring(a.Blocked),
+				tostring(a.Root.Anchored),
+				if humanoid then humanoid:GetState().Name else "?",
+				tostring(a.Constraint.Active)
+			))
+		end
+		if moved < a.Expected * 0.4 and not a.Blocked then
 			warn(string.format("[Motion] a push covered %.1f of %.1f studs - something is holding the character back", moved, a.Expected))
 		end
 	end

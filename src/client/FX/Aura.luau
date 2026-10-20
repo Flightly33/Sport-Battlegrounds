@@ -12,6 +12,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Characters = require(Shared.Characters)
+local Config = require(Shared.Config)
 
 local FX = require(script.Parent)
 
@@ -188,6 +189,18 @@ function Aura.Attach(character: Model, classId: string, palette: Palette): Handl
 		local t = os.clock()
 		highlight.OutlineTransparency = 0.1 + (math.sin(t * 6) + 1) * 0.12
 	end)
+
+	-- Denser aura, per Config.VFX
+	for _, i in created do
+		for _, d in i:GetDescendants() do
+			if d:IsA("ParticleEmitter") then
+				d.Rate *= Config.VFX.AuraDensity
+			end
+		end
+		if i:IsA("ParticleEmitter") then
+			i.Rate *= Config.VFX.AuraDensity
+		end
+	end
 
 	local handle = {} :: any
 	function handle.Destroy(_self: Handle)

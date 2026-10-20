@@ -160,6 +160,15 @@ Config.Audio = {
 	MusicToggleKey = Enum.KeyCode.N,
 }
 
+-- How big and dense every effect is (client FX). Turn down for weaker devices.
+Config.VFX = {
+	Density = 2.2, -- particle counts x this
+	MaxBurst = 160, -- most particles in one burst
+	Scale = 1.35, -- sizes of flashes, rings, shells, impact lines, bolts, trails x this
+	ScreenEffects = true, -- impact frames, blur pulses, focus lines on your own big hits
+	AuraDensity = 1.8, -- awakening aura particle rates x this
+}
+
 Config.Debug = {
 	ShowHitboxes = false, -- draw client hitboxes (Studio only)
 	LogRejectedHits = true, -- print why the server threw a hit away (Studio only)

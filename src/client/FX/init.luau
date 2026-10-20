@@ -18,6 +18,11 @@ local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local AssetIds = require(Shared.AssetIds)
 local Characters = require(Shared.Characters)
+local Config = require(Shared.Config)
+
+-- Global size / density knobs (Config.VFX)
+local SCALE = Config.VFX.Scale
+local DENSITY = Config.VFX.Density
 
 type Palette = Characters.Palette
 
@@ -165,7 +170,7 @@ function FX.Emit(position: Vector3, o: EmitOptions): ParticleEmitter
 	e.Rate = 0
 	e.Enabled = false
 	e.Parent = attachment
-	e:Emit(o.Count)
+	e:Emit(math.min(math.ceil(o.Count * DENSITY), Config.VFX.MaxBurst))
 	return e
 end
 
@@ -174,6 +179,7 @@ end
 --------------------------------------------------------------------------------
 -- A bright ball that blows up and fades: the core of every impact.
 function FX.Flash(position: Vector3, color: Color3, size: number, duration: number?)
+	size *= SCALE
 	local d = duration or 0.18
 	local p = FX.Part({ Size = Vector3.one * size * 0.25, CFrame = CFrame.new(position), Color = color, Shape = Enum.PartType.Ball, Life = d + 0.05 })
 	tween(p, d, { Size = Vector3.one * size, Transparency = 1 }, Enum.EasingStyle.Quart)
@@ -181,6 +187,8 @@ end
 
 -- An energy shell (force field material) growing from r0 to r1.
 function FX.Shell(position: Vector3, color: Color3, r0: number, r1: number, duration: number, material: Enum.Material?)
+	r0 *= SCALE
+	r1 *= SCALE
 	local p = FX.Part({
 		Size = Vector3.one * r0 * 2,
 		CFrame = CFrame.new(position),
@@ -209,7 +217,9 @@ end
 
 -- A crisp expanding ring lying in cf's XZ plane, built from short neon segments (or the ring mesh).
 function FX.Ring(cf: CFrame, color: Color3, r0: number, r1: number, duration: number, width: number?, segments: number?)
-	local w = width or 0.8
+	r0 *= SCALE
+	r1 *= SCALE
+	local w = (width or 0.8) * SCALE
 	local mesh = ringMesh()
 	if mesh then
 		local p = FX.Part({ Size = Vector3.one, CFrame = cf, Color = color, Life = duration + 0.05 })
@@ -252,6 +262,7 @@ end
 -- A flat shockwave: a force-field disc (soft) plus a crisp ring on top.
 function FX.Shockwave(cf: CFrame, color: Color3, radius: number, duration: number?, core: Color3?)
 	local d = duration or 0.45
+	radius *= SCALE
 	local disc = FX.Part({
 		Size = Vector3.new(1.2, 2, 2),
 		CFrame = cf * CFrame.Angles(0, 0, math.pi / 2),
@@ -261,7 +272,7 @@ function FX.Shockwave(cf: CFrame, color: Color3, radius: number, duration: numbe
 		Life = d + 0.05,
 	})
 	tween(disc, d, { Size = Vector3.new(0.3, radius * 2, radius * 2), Transparency = 1 }, Enum.EasingStyle.Quart)
-	FX.Ring(cf, core or color, radius * 0.15, radius, d * 0.8, math.clamp(radius * 0.08, 0.4, 2.2))
+	FX.Ring(cf, core or color, radius * 0.15 / SCALE, radius / SCALE, d * 0.8, math.clamp(radius * 0.08, 0.4, 2.2) / SCALE)
 	local texture = AssetIds.Resolve(AssetIds.Textures.Shockwave)
 	if texture then
 		-- One particle lying flat (VelocityPerpendicular + upward emission), growing to the radius
@@ -283,6 +294,8 @@ end
 
 -- Anime impact lines: thin streaks bursting out from a point, facing the camera.
 function FX.ImpactLines(position: Vector3, color: Color3, count: number, length: number, duration: number?)
+	count = math.ceil(count * math.sqrt(DENSITY))
+	length *= SCALE
 	local d = duration or 0.18
 	local camera = workspace.CurrentCamera
 	local look = if camera then (position - camera.CFrame.Position).Unit else Vector3.new(0, 0, -1)
@@ -399,7 +412,7 @@ export type LightningOptions = {
 -- A jagged lightning bolt between two points (white-hot core inside a coloured glow).
 function FX.Lightning(from: Vector3, to: Vector3, color: Color3, options: LightningOptions?)
 	local o: LightningOptions = options or {}
-	local thickness = o.Thickness or 0.5
+	local thickness = (o.Thickness or 0.5) * SCALE
 	local length = (to - from).Magnitude
 	local jag = o.Jag or math.clamp(length * 0.14, 0.6, 14)
 	local detail = o.Detail or (if length > 40 then 4 else 3)
@@ -439,7 +452,7 @@ function FX.Lightning(from: Vector3, to: Vector3, color: Color3, options: Lightn
 		local start = points[i]
 		local dir = ((to - from).Unit + Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 1.6).Unit
 		FX.Lightning(start, start + dir * length * (0.15 + math.random() * 0.2), color, {
-			Thickness = thickness * 0.5,
+			Thickness = thickness * 0.5 / SCALE,
 			Detail = 2,
 			Duration = duration * 0.8,
 			Flickers = 1,
@@ -618,6 +631,7 @@ end
 
 -- A Trail on a moving part (limbs, balls). Returns it so the caller can disable / remove it.
 function FX.Trail(part: BasePart, color: Color3, width: number, lifetime: number?, core: Color3?): Trail
+	width *= SCALE
 	local a0 = Instance.new("Attachment")
 	a0.Position = Vector3.new(0, width / 2, 0)
 	a0.Parent = part
@@ -892,6 +906,116 @@ function FX.Popup(position: Vector3, text: string, color: Color3, scale: number?
 end
 
 --------------------------------------------------------------------------------
+-- Anime accents
+--------------------------------------------------------------------------------
+local function towardCamera(position: Vector3): CFrame
+	local camera = workspace.CurrentCamera
+	local look = if camera then (position - camera.CFrame.Position).Unit else Vector3.new(0, 0, -1)
+	return CFrame.lookAt(position, position + look)
+end
+
+-- The anime hit "star": sharp spikes stabbing out from a point in the screen plane, a white core
+-- inside each, snapping out and thinning to nothing.
+function FX.SpikeBurst(position: Vector3, color: Color3, core: Color3, count: number, length: number, duration: number?)
+	local d = duration or 0.16
+	length *= SCALE
+	local basis = towardCamera(position)
+	for i = 1, count do
+		local a = (i / count) * math.pi * 2 + (math.random() - 0.5) * 0.5
+		local dir = basis.RightVector * math.cos(a) + basis.UpVector * math.sin(a)
+		local len = length * (0.55 + math.random() * 0.9)
+		local width = len * 0.11
+		for layer = 1, 2 do
+			local w = if layer == 1 then width else width * 0.4
+			local p = FX.Part({
+				Size = Vector3.new(w, w * 0.4, len * 0.25),
+				CFrame = CFrame.lookAt(position + dir * len * 0.12, position + dir * 2),
+				Color = if layer == 1 then color else core,
+				Life = d + 0.05,
+			})
+			local tip = position + dir * len * 0.5
+			tween(p, d, { Size = Vector3.new(0.02, 0.02, len), CFrame = CFrame.lookAt(tip, tip + dir), Transparency = if layer == 1 then 0.6 else 1 }, Enum.EasingStyle.Quart)
+		end
+	end
+end
+
+-- Glowing cracks splitting the ground out from a point (heavy hits and slams).
+function FX.GroundCrack(position: Vector3, color: Color3, radius: number, duration: number?)
+	local d = duration or 1.6
+	radius *= SCALE
+	local ground = groundBelow(position) + Vector3.new(0, 0.06, 0)
+	for _ = 1, math.random(6, 9) do
+		local a = math.random() * math.pi * 2
+		local from = ground
+		local heading = a
+		local steps = math.random(3, 5)
+		for k = 1, steps do
+			heading += (math.random() - 0.5) * 0.9
+			local seg = radius / steps * (0.7 + math.random() * 0.6)
+			local to = from + Vector3.new(math.cos(heading), 0, math.sin(heading)) * seg
+			local width = 0.5 * (1 - k / (steps + 1)) + 0.1
+			local crack = FX.Part({ Size = Vector3.new(width, 0.08, seg), CFrame = CFrame.lookAt((from + to) / 2, to), Color = Color3.fromRGB(20, 18, 24), Material = Enum.Material.SmoothPlastic, Life = d + 0.3 })
+			local glow = FX.Part({ Size = Vector3.new(width * 0.45, 0.1, seg), CFrame = CFrame.lookAt((from + to) / 2, to), Color = color, Life = d + 0.3 })
+			task.delay(d * 0.5, function()
+				tween(crack, d * 0.5, { Transparency = 1 })
+				tween(glow, d * 0.5, { Transparency = 1 })
+			end)
+			from = to
+		end
+	end
+end
+
+-- A column of light punching up into the sky (ultimates, awakenings).
+function FX.Pillar(position: Vector3, color: Color3, core: Color3, radius: number, height: number, duration: number?)
+	local d = duration or 0.7
+	radius *= SCALE
+	local ground = groundBelow(position)
+	for layer = 1, 2 do
+		local r = if layer == 1 then radius else radius * 0.45
+		local p = FX.Part({
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(height, r * 2, r * 2),
+			CFrame = CFrame.new(ground + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+			Color = if layer == 1 then color else core,
+			Transparency = if layer == 1 then 0.35 else 0,
+			Life = d + 0.05,
+		})
+		tween(p, d, { Size = Vector3.new(height, 0.1, 0.1), Transparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+	end
+end
+
+-- Glowing embers drifting up after a big hit.
+function FX.Embers(position: Vector3, color: Color3, count: number, spread: number?)
+	FX.Emit(position, {
+		Color = color,
+		Count = count,
+		Speed = NumberRange.new(4, 14),
+		Spread = Vector2.new(70, 70),
+		Size = numberSeq(0.35, 0.25, 0),
+		Lifetime = NumberRange.new(0.8, 1.6),
+		Acceleration = Vector3.new(0, 6, 0),
+		Drag = 1.5,
+		Transparency = numberSeq(0, 0.2, 1),
+	})
+	if spread then
+		FX.Emit(position, { Color = color, Count = math.ceil(count / 2), Speed = NumberRange.new(spread, spread * 2), Size = numberSeq(0.25, 0), Lifetime = NumberRange.new(0.4, 0.8), Drag = 3 })
+	end
+end
+
+-- Long streak sparks that fly along their path (velocity-aligned), for hits that crack.
+function FX.Streaks(position: Vector3, color: Color3, count: number, speed: number)
+	FX.Emit(position, {
+		Color = color,
+		Count = count,
+		Speed = NumberRange.new(speed * 0.6, speed),
+		Size = numberSeq(0.25, 0),
+		Lifetime = NumberRange.new(0.12, 0.3),
+		Orientation = Enum.ParticleOrientation.VelocityParallel,
+		Drag = 2,
+	})
+end
+
+--------------------------------------------------------------------------------
 -- Composites
 --------------------------------------------------------------------------------
 -- A standard hit: flash, impact lines, sparks, a small ring. strength 0.5 (M1) .. 3 (finisher).
@@ -905,6 +1029,16 @@ function FX.Impact(position: Vector3, palette: Palette, strength: number)
 	local facing = if camera then CFrame.lookAt(position, camera.CFrame.Position) * CFrame.Angles(math.pi / 2, 0, 0) else CFrame.new(position)
 	FX.Ring(facing, palette.Secondary, 0.5 * s, 3 * s, 0.22, 0.25 + 0.15 * s, 14)
 	FX.Light(position, palette.Light, 3 * s, 10 + 6 * s, 0.25)
+	-- Anime accents: the spike star, streaks, a second ring snapping out, embers on bigger hits
+	FX.SpikeBurst(position, palette.Primary, palette.Core, math.floor(6 + 3 * s), 3 + 2.6 * s, 0.14 + 0.03 * s)
+	FX.Streaks(position, palette.Core, math.floor(6 + 6 * s), 60 + 20 * s)
+	task.delay(0.04, function()
+		FX.Ring(facing, palette.Core, 0.3 * s, 4.5 * s, 0.18, 0.12 + 0.08 * s, 16)
+	end)
+	if s >= 1.6 then
+		FX.Embers(position, palette.Accent, math.floor(6 * s), 20)
+		FX.GroundCrack(position, palette.Primary, 2.5 * s)
+	end
 	-- Anime impact star
 	local burstMesh = AssetIds.Resolve(AssetIds.Meshes.Burst)
 	local starTexture = AssetIds.Resolve(AssetIds.Textures.Impact)
@@ -984,7 +1118,12 @@ function FX.Explosion(position: Vector3, palette: Palette, size: number, options
 		tween(p, 0.5, { Transparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	end
 	FX.ImpactLines(position, palette.Core, 16, size * 1.4, 0.22)
+	FX.SpikeBurst(position, palette.Primary, palette.Core, 12, size * 1.6, 0.22)
 	FX.Sparks(position, palette.Accent, 40, size * 6, 0.9)
+	FX.Embers(position, palette.Accent, 20, size * 2)
+	if (position.Y - ground.Y) < size then
+		FX.GroundCrack(ground, palette.Primary, size * 0.9)
+	end
 	FX.Light(position, palette.Light, 8, size * 4, 0.6)
 	if o.Fire ~= false then
 		FX.FireBurst(position, palette.Secondary, palette.Primary, 24, size * 0.35, 0.9)
@@ -1024,6 +1163,9 @@ function FX.Thunderbolt(position: Vector3, palette: Palette, size: number)
 	FX.Shockwave(CFrame.new(ground + Vector3.new(0, 0.2, 0)), palette.Primary, size * 2.2, 0.5, palette.Core)
 	FX.Sparks(ground, palette.Accent, 30, size * 8, 0.8)
 	FX.Light(ground, palette.Light, 10, 50, 0.4)
+	FX.Pillar(ground, palette.Primary, palette.Core, size * 0.8, 60, 0.45)
+	FX.GroundCrack(ground, palette.Primary, size * 1.2)
+	FX.SpikeBurst(ground + Vector3.new(0, 2, 0), palette.Primary, palette.Core, 10, size * 1.5, 0.2)
 end
 
 return FX
